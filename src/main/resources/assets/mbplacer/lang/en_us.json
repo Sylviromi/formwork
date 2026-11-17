@@ -75,8 +75,5 @@
   "mbplacer.msg.placed_skipped": "Placed %s blocks, skipped %s in the way",
   "mbplacer.gui.auto": "Auto",
   "mbplacer.gui.click_craft": "Click: craft with AE2",
-  "mbplacer.gui.craft_all": "Craft all missing (%s)",
-  "mbplacer.msg.crafting_started": "Requested %s crafts from the ME network",
-  "mbplacer.msg.craft_missing": "Cannot craft %s: ingredients are missing",
-  "mbplacer.msg.craft_failed": "Craft of %s failed: %s"
+  "mbplacer.gui.craft_all": "Craft all missing (%s)"
 }

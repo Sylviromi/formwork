@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 
 /** All packets. Server to client: catalog sync and material reports. Client to server: selection, report query, craft request. */
 public final class Net {
-    private static final String VERSION = "9";
+    private static final String VERSION = "10";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(MbPlacer.ID, "main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -134,15 +134,15 @@ public final class Net {
         }
     }
 
-    /** A timed update of a placement started and takes this many ticks; the client animates the HUD bar itself. */
-    public record Progress(UUID placement, int ticks) {
+    /** How far a timed update of a placement is (0..1), sent every server tick so the HUD bar matches the blocks; 1 = done. */
+    public record Progress(UUID placement, float done) {
         void write(FriendlyByteBuf b) {
             b.writeUUID(placement);
-            b.writeVarInt(ticks);
+            b.writeFloat(done);
         }
 
         static Progress read(FriendlyByteBuf b) {
-            return new Progress(b.readUUID(), b.readVarInt());
+            return new Progress(b.readUUID(), b.readFloat());
         }
     }
 
@@ -178,7 +178,7 @@ public final class Net {
         }
     }
 
-    /** Start AE2 crafting jobs for all these missing materials at once, without AE2's screens. */
+    /** Open AE2's craft confirm screens for all these missing materials, one after another. */
     public record CraftAll(Map<Item, Integer> amounts) {
         void write(FriendlyByteBuf b) {
             b.writeMap(amounts, (o, i) -> o.writeId(net.minecraft.core.registries.BuiltInRegistries.ITEM, i), FriendlyByteBuf::writeVarInt);
@@ -227,9 +227,8 @@ public final class Net {
                 .encoder(PlacementsSync::write).decoder(PlacementsSync::read).consumerMainThread((m, ctx) -> { ClientData.placements = m.recs(); }).add();
         CHANNEL.messageBuilder(Progress.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(Progress::write).decoder(Progress::read).consumerMainThread((m, ctx) -> {
-                    ClientData.progressFor = m.placement();
-                    ClientData.progressStart = System.currentTimeMillis();
-                    ClientData.progressMillis = m.ticks() * 50L;
+                    ClientData.progressFor = m.done() >= 1 ? null : m.placement();
+                    ClientData.progress = m.done();
                 }).add();
         CHANNEL.messageBuilder(Aim.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(Aim::write).decoder(Aim::read).consumerMainThread((m, ctx) -> {
@@ -336,11 +335,11 @@ public final class Net {
     private static void onCraftAll(CraftAll m, Supplier<NetworkEvent.Context> ctx) {
         ServerPlayer p = ctx.get().getSender();
         if (p == null || !MbPlacer.AE2) return;
-        Map<Item, Long> amounts = new LinkedHashMap<>();
-        m.amounts().forEach((item, n) -> { if (item != null && n > 0) amounts.put(item, (long) Math.min(n, 1 << 20)); });
+        Map<Item, Integer> amounts = new LinkedHashMap<>();
+        m.amounts().forEach((item, n) -> { if (item != null && n > 0) amounts.put(item, Math.min(n, 1 << 20)); });
         for (InteractionHand hand : InteractionHand.values())
             if (p.getItemInHand(hand).getItem() instanceof PlacerItem) {
-                AeLink.craftAll(p, p.getItemInHand(hand), amounts);
+                AeLink.openCraftAll(p, hand, amounts);
                 return;
             }
     }

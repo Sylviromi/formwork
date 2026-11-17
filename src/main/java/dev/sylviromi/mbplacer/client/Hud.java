@@ -35,8 +35,7 @@ final class Hud {
     /** A running in-place update (server job): its name and progress. */
     private static void updating(GuiGraphics g, Minecraft mc) {
         Placements.Rec rec = ClientData.placements.stream().filter(r -> r.id().equals(ClientData.progressFor)).findFirst().orElse(null);
-        float progress = (float) (System.currentTimeMillis() - ClientData.progressStart) / ClientData.progressMillis;
-        label(g, mc, rec == null ? Component.empty() : PlacerItem.displayName(Selection.load(rec.selection()).entry()), ACCENT, Math.min(1, progress), ACCENT);
+        label(g, mc, rec == null ? Component.empty() : PlacerItem.displayName(Selection.load(rec.selection()).entry()), ACCENT, Math.max(0.01f, ClientData.progress), ACCENT);
     }
 
     /** The name under the crosshair, like vanilla's subtitle text, with a thin bar under it while something runs. */
@@ -53,8 +52,7 @@ final class Hud {
         Minecraft mc = Minecraft.getInstance();
         if (e.getOverlay() != VanillaGuiOverlay.CROSSHAIR.type() || mc.player == null || mc.screen != null) return;
         GuiGraphics g = e.getGuiGraphics();
-        long elapsed = System.currentTimeMillis() - ClientData.progressStart;
-        if (ClientData.progressFor != null && elapsed < ClientData.progressMillis) {
+        if (ClientData.progressFor != null) {
             updating(g, mc);
             return;
         }

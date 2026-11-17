@@ -135,6 +135,18 @@ public final class DevHooks {
         }));
         step(t += 30, "ae2_back", null);
         step(t += 1, null, mc -> MbPlacer.LOG.info("dev: screen after AE2 back: {}", mc.screen));
+        // Craft all: patterns for two of the fission reactor's blocks, then AE2's confirm queue from the editor
+        step(t += 5, null, mc -> onServer(mc, DevHooks::buildPatterns));
+        step(t += 20, null, mc -> {
+            editor(mc, FISSION, "MATERIALS", null);
+            ClientHooks.resume = (EditorScreen) mc.screen;
+        });
+        step(t += 40, "craft_all_button", null);
+        step(t += 5, null, mc -> onServer(mc, sp -> dev.sylviromi.mbplacer.ae2.AeLink.openCraftAll(sp, net.minecraft.world.InteractionHand.MAIN_HAND,
+                Map.of(ForgeRegistries.ITEMS.getValue(new net.minecraft.resources.ResourceLocation("mekanismgenerators:reactor_glass")), 146,
+                        ForgeRegistries.ITEMS.getValue(new net.minecraft.resources.ResourceLocation("mekanismgenerators:fission_reactor_casing")), 68))));
+        step(t += 40, "craft_all_confirm", null);
+        step(t += 1, null, mc -> MbPlacer.LOG.info("dev: screen after craft all: {}", mc.screen));
         step(t += 20, null, Minecraft::stop);
     }
 
@@ -244,6 +256,22 @@ public final class DevHooks {
         GlobalPos at = GlobalPos.of(sp.level().dimension(), wap.above());
         GlobalPos.CODEC.encodeStart(NbtOps.INSTANCE, at).result().ifPresent(tag -> sp.getMainHandItem().getOrCreateTag().put(PlacerItem.AE_LINK, tag));
         MbPlacer.LOG.info("dev: access point at {} with 8 boosters, tool linked", wap.above());
+    }
+
+    /** A pattern provider with processing patterns (cobblestone -> reactor glass / fission casing) and a crafting CPU, next to the energy cell. */
+    private static void buildPatterns(ServerPlayer sp) {
+        var src = sp.createCommandSourceStack().withSuppressedOutput().withPermission(4);
+        var cmd = sp.server.getCommands();
+        cmd.performPrefixedCommand(src, "setblock " + wap.getX() + " " + wap.getY() + " " + (wap.getZ() + 1) + " ae2:pattern_provider");
+        cmd.performPrefixedCommand(src, "setblock " + wap.getX() + " " + wap.getY() + " " + (wap.getZ() - 1) + " ae2:1k_crafting_storage");
+        if (sp.level().getBlockEntity(wap.south()) instanceof appeng.blockentity.crafting.PatternProviderBlockEntity pp) {
+            for (String out : List.of("mekanismgenerators:reactor_glass", "mekanismgenerators:fission_reactor_casing"))
+                pp.getLogic().getPatternInv().addItems(appeng.api.crafting.PatternDetailsHelper.encodeProcessingPattern(
+                        new appeng.api.stacks.GenericStack[]{new appeng.api.stacks.GenericStack(appeng.api.stacks.AEItemKey.of(net.minecraft.world.item.Items.COBBLESTONE), 1)},
+                        new appeng.api.stacks.GenericStack[]{new appeng.api.stacks.GenericStack(appeng.api.stacks.AEItemKey.of(ForgeRegistries.ITEMS.getValue(new net.minecraft.resources.ResourceLocation(out))), 1)}));
+            pp.getLogic().updatePatterns();
+        }
+        MbPlacer.LOG.info("dev: patterns set up: {}", sp.level().getBlockEntity(wap.south()));
     }
 
     private static void infinityCard(ServerPlayer sp) {

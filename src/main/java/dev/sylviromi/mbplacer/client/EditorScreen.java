@@ -366,7 +366,10 @@ public class EditorScreen extends Screen {
                 Map<Item, Integer> craftAll = new LinkedHashMap<>();
                 if (me) ClientData.rows.stream().filter(r -> r.missing() > 0 && r.craftable()).forEach(r -> craftAll.put(r.item(), r.missing()));
                 if (craftAll.size() > 1)
-                    out.add(actionLine(Component.translatable("mbplacer.gui.craft_all", craftAll.size()), () -> Net.CHANNEL.sendToServer(new Net.CraftAll(craftAll))));
+                    out.add(actionLine(Component.translatable("mbplacer.gui.craft_all", craftAll.size()), () -> {
+                        ClientHooks.resume = this;
+                        Net.CHANNEL.sendToServer(new Net.CraftAll(craftAll));
+                    }));
                 for (Materials.Row r : ClientData.rows) {
                     int have = (int) Math.min(Integer.MAX_VALUE, r.inventory() + Math.max(0, r.me()));
                     int color = r.missing() == 0 ? GREEN : r.craftable() ? YELLOW : RED;

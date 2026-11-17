@@ -5,17 +5,15 @@ import appeng.api.features.GridLinkables;
 import appeng.api.features.IGridLinkableHandler;
 import appeng.api.implementations.blockentities.IWirelessAccessPoint;
 import appeng.api.networking.IGrid;
-import appeng.api.networking.crafting.CalculationStrategy;
-import appeng.api.networking.crafting.ICraftingPlan;
-import appeng.api.networking.crafting.ICraftingSimulationRequester;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.networking.IGridNode;
 import appeng.api.stacks.AEItemKey;
 import appeng.core.definitions.AEItems;
 import appeng.helpers.WirelessTerminalMenuHost;
 import appeng.menu.locator.MenuLocators;
+import appeng.helpers.IMenuCraftingPacket;
 import appeng.menu.me.crafting.CraftAmountMenu;
-import net.minecraft.network.chat.Component;
+import appeng.menu.me.crafting.CraftConfirmMenu;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.nbt.NbtOps;
@@ -24,14 +22,12 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.event.TickEvent;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Future;
 
 /**
  * Everything that touches AE2. Only call into this class after checking that AE2 is loaded.
@@ -159,46 +155,17 @@ public final class AeLink {
         CraftAmountMenu.open(player, MenuLocators.forHand(player, hand), AEItemKey.of(item), Math.max(1, amount));
     }
 
-    private record Pending(ServerPlayer player, IGrid grid, Item item, Future<ICraftingPlan> plan) {
-    }
-
-    private static final List<Pending> PENDING = new ArrayList<>();
-
-    /** Starts a crafting calculation per craftable item; each job is submitted from the server tick once its plan is ready. */
-    public static void craftAll(ServerPlayer player, ItemStack tool, Map<Item, Long> amounts) {
-        IGrid grid = grid(player, tool);
-        if (grid == null) return;
-        ICraftingSimulationRequester requester = () -> IActionSource.ofPlayer(player);
-        int n = 0;
-        for (var e : amounts.entrySet()) {
-            if (!craftable(grid, e.getKey())) continue;
-            PENDING.add(new Pending(player, grid, e.getKey(), grid.getCraftingService().beginCraftingCalculation(
-                    player.level(), requester, AEItemKey.of(e.getKey()), e.getValue(), CalculationStrategy.REPORT_MISSING_ITEMS)));
-            n++;
-        }
-        player.displayClientMessage(Component.translatable("mbplacer.msg.crafting_started", n), true);
-    }
-
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || PENDING.isEmpty()) return;
-        for (Iterator<Pending> it = PENDING.iterator(); it.hasNext(); ) {
-            Pending p = it.next();
-            if (!p.plan().isDone()) continue;
-            it.remove();
-            Component name = p.item().getDescription();
-            try {
-                ICraftingPlan plan = p.plan().get();
-                if (plan.simulation()) {
-                    p.player().sendSystemMessage(Component.translatable("mbplacer.msg.craft_missing", name));
-                    continue;
-                }
-                var result = p.grid().getCraftingService().submitJob(plan, null, null, false, IActionSource.ofPlayer(p.player()));
-                if (!result.successful())
-                    p.player().sendSystemMessage(Component.translatable("mbplacer.msg.craft_failed", name, String.valueOf(result.errorCode())));
-            } catch (Exception e) {
-                p.player().sendSystemMessage(Component.translatable("mbplacer.msg.craft_failed", name, e.getMessage()));
-            }
-        }
+    /**
+     * AE2's craft confirm screen for each item in turn (AE2's own "craft missing" queue): Start moves on to the next one,
+     * the last one returns to the editor.
+     */
+    public static void openCraftAll(ServerPlayer player, InteractionHand hand, Map<Item, Integer> amounts) {
+        IGridNode node = node(player, player.getItemInHand(hand));
+        if (node == null) return;
+        List<IMenuCraftingPacket.AutoCraftEntry> queue = new ArrayList<>();
+        // AE2 crafts one item per listed slot; the slot numbers themselves are not used outside the crafting terminal
+        amounts.forEach((item, n) -> { if (craftable(node.getGrid(), item)) queue.add(new IMenuCraftingPacket.AutoCraftEntry(AEItemKey.of(item), Collections.nCopies(n, 0))); });
+        CraftConfirmMenu.openWithCraftingList(() -> node, player, MenuLocators.forHand(player, hand), queue);
     }
 
     /** The tool as registered when AE2 is present: it can host AE2's craft screens. */

@@ -104,7 +104,7 @@ public final class Updater {
         order.addAll(plan.place().keySet());
         int ticks = Placements.dismantleTicks(rec);
         JOBS.add(new Job(player, tool, level, rec, sel, plan, new ArrayList<>(order), new ArrayList<>(), ticks, new int[2]));
-        Net.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new Net.Progress(rec.id(), ticks));
+        Net.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new Net.Progress(rec.id(), 0));
     }
 
     /** A running update. done[0]: positions handled, done[1]: ticks elapsed. */
@@ -128,6 +128,8 @@ public final class Updater {
                 Resolver.Placed want = j.plan().place().get(pos);
                 if (want != null) Placer.put(j.level(), Map.of(pos, want), j.player());
             }
+            if (!j.player().hasDisconnected())
+                Net.CHANNEL.send(PacketDistributor.PLAYER.with(j::player), new Net.Progress(j.rec().id(), Math.min(0.99f, (float) j.done()[0] / j.order().size())));
             if (j.done()[0] < j.order().size()) continue;
             it.remove();
             if (j.player().hasDisconnected()) j.drops().forEach(s -> Block.popResource(j.level(), j.rec().target(), s));
@@ -135,6 +137,7 @@ public final class Updater {
             Placements placements = Placements.of(j.level());
             placements.remove(j.level(), j.rec().id());
             placements.add(j.level(), Placements.record(j.plan().all(), j.sel().save(), j.rec().target(), j.rec().facing(), j.rec().owner()));
+            if (!j.player().hasDisconnected()) Net.CHANNEL.send(PacketDistributor.PLAYER.with(j::player), new Net.Progress(j.rec().id(), 1));
             j.player().displayClientMessage(Component.translatable("mbplacer.msg.updated", j.plan().remove().size(), j.plan().place().size()), true);
         }
     }
