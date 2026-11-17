@@ -34,14 +34,9 @@ public final class Dismantler {
         return specs == null ? null : Resolver.world(specs, rec.target(), rec.facing());
     }
 
-    public static void dismantle(ServerPlayer player, ItemStack tool, BlockPos looked) {
+    public static void dismantle(ServerPlayer player, ItemStack tool, Placements.Rec rec) {
         ServerLevel level = player.serverLevel();
         Placements placements = Placements.of(level);
-        Placements.Rec rec = Placements.at(placements.all(), looked);
-        if (rec == null) {
-            fail(player, "mbplacer.msg.not_placed");
-            return;
-        }
         Map<BlockPos, Resolver.Placed> placed = blocks(Catalog.server, rec);
         if (placed == null) {
             fail(player, "mbplacer.msg.invalid_selection");

@@ -3,6 +3,7 @@ package dev.sylviromi.mbplacer.client;
 import dev.sylviromi.mbplacer.MbPlacer;
 import dev.sylviromi.mbplacer.build.Placements;
 import dev.sylviromi.mbplacer.item.PlacerItem;
+import dev.sylviromi.mbplacer.net.ClientData;
 import dev.sylviromi.mbplacer.structure.Selection;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -31,14 +32,32 @@ final class Hud {
         return Math.min(1, (p.getTicksUsingItem() + mc.getFrameTime()) / Placements.dismantleTicks(rec));
     }
 
+    /** A running in-place update (server job): "Updating <name>" and its progress. */
+    private static void updating(GuiGraphics g, Minecraft mc) {
+        Placements.Rec rec = ClientData.placements.stream().filter(r -> r.id().equals(ClientData.progressFor)).findFirst().orElse(null);
+        Component name = Component.translatable("mbplacer.hud.updating", rec == null ? "" : PlacerItem.displayName(Selection.load(rec.selection()).entry()));
+        int cx = g.guiWidth() / 2, y = g.guiHeight() / 2 + 12, w = Math.max(mc.font.width(name), BAR_W) + 10;
+        g.fill(cx - w / 2, y - 3, cx + w / 2, y + 17, 0xB00D1117);
+        g.renderOutline(cx - w / 2, y - 3, w, 20, BORDER);
+        g.drawCenteredString(mc.font, name, cx, y, ACCENT);
+        g.fill(cx - BAR_W / 2, y + 11, cx + BAR_W / 2, y + 14, CELL);
+        float progress = (float) (System.currentTimeMillis() - ClientData.progressStart) / ClientData.progressMillis;
+        g.fill(cx - BAR_W / 2, y + 11, cx - BAR_W / 2 + (int) (BAR_W * Math.min(1, progress)), y + 14, ACCENT);
+    }
+
     @SubscribeEvent
     static void onOverlay(RenderGuiOverlayEvent.Post e) {
         Minecraft mc = Minecraft.getInstance();
         if (e.getOverlay() != VanillaGuiOverlay.CROSSHAIR.type() || mc.player == null || mc.screen != null) return;
+        GuiGraphics g = e.getGuiGraphics();
+        long elapsed = System.currentTimeMillis() - ClientData.progressStart;
+        if (ClientData.progressFor != null && elapsed < ClientData.progressMillis) {
+            updating(g, mc);
+            return;
+        }
         ItemStack tool = WorldGhost.heldTool();
         Placements.Rec rec = tool.isEmpty() ? null : PlacerItem.placementLookedAt(mc.player);
         if (rec == null) return;
-        GuiGraphics g = e.getGuiGraphics();
         var font = mc.font;
         int cx = g.guiWidth() / 2, y = g.guiHeight() / 2 + 12;
         Component name = PlacerItem.displayName(Selection.load(rec.selection()).entry());

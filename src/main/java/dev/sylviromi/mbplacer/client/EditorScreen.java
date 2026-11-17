@@ -32,7 +32,11 @@ public class EditorScreen extends Screen {
     private final Catalog.Entry entry;
     private int tier;
     private int[] params;
-    private final Map<String, Map<String, Integer>> counts = new LinkedHashMap<>();
+    /** The player's choice per swappable position (blueprint coordinates). */
+    private final Map<BlockPos, String> overrides = new LinkedHashMap<>();
+    private Map<BlockPos, BlockSpec> base = Map.of();
+    private Map<BlockPos, VariantSet> slotMap = Map.of();
+    private List<Resolver.Check> checks = List.of();
 
     private int x0, y0, w, h, sideW;
     private Tab tab = Tab.SETTINGS;
@@ -47,6 +51,11 @@ public class EditorScreen extends Screen {
     private int layer; // 0 = all layers, else the number of layers shown from the bottom
     private final View view = new View();
     private boolean draggingSlider;
+    /** Swappable block under the mouse in the 3D view; where a click started; the block being edited in the side panel. */
+    private BlockPos hoveredSlot;
+    private double pressX = -1, pressY;
+    private BlockPos pressSlot;
+    private BlockPos selectedSlot;
 
     /** Set when editing a placed multiblock: changes are previewed against it and applied in place. */
     private final Placements.Rec editing;
@@ -64,7 +73,12 @@ public class EditorScreen extends Screen {
         if (i >= 0) {
             tier = i;
             params = sel.params();
-            sel.counts().forEach((k, v) -> counts.put(k, new LinkedHashMap<>(v)));
+            overrides.putAll(sel.overrides());
+            // older tools stored counts: turn them into per-position choices
+            if (!sel.counts().isEmpty()) {
+                Map<BlockPos, BlockSpec> b = Resolver.specs(Catalog.client, new Selection(sel.entry(), sel.params(), Map.of()));
+                if (b != null) overrides.putAll(Resolver.countsToOverrides(Resolver.slots(Catalog.client, sel.entry(), b), sel.counts()));
+            }
         } else {
             tier = entry.members().size() - 1;
             params = generator().map(g -> g.params().stream().mapToInt(Param::def).toArray()).orElse(new int[0]);
@@ -82,14 +96,29 @@ public class EditorScreen extends Screen {
     }
 
     private Selection selection() {
-        Map<String, Map<String, Integer>> nonZero = new LinkedHashMap<>();
-        counts.forEach((set, m) -> { if (!m.isEmpty()) nonZero.put(set, Map.copyOf(m)); });
-        return new Selection(currentId(), params, nonZero);
+        return new Selection(currentId(), params, Map.of(), Map.copyOf(overrides));
     }
 
     void devCount(String set, String block, int n) {
-        counts.computeIfAbsent(set, k -> new LinkedHashMap<>()).put(block, n);
+        for (int i = 0; i < n; i++) VariantCounts.add(slotsOf(set), overrides, block);
         rebuild(true);
+    }
+
+    /** One set's positions, in order. */
+    private List<BlockPos> slotsOf(String setId) {
+        return slotMap.entrySet().stream().filter(e -> e.getValue().id().equals(setId)).map(Map.Entry::getKey).toList();
+    }
+
+    /** Dev: one energy-port slot gets an item port, so the structure check shows a mismatch. */
+    void devWrongPort() {
+        slotMap.entrySet().stream().filter(e -> e.getValue().id().contains("energy")).findFirst()
+                .ifPresent(e -> overrides.put(e.getKey(), "mm:tiny_item_port_input"));
+        rebuild(true);
+    }
+
+    /** Dev: selects the first slot for editing. */
+    void devPickFirstSlot() {
+        slotMap.keySet().stream().findFirst().ifPresent(this::select);
     }
 
     void devLayer(int l) {
@@ -117,7 +146,12 @@ public class EditorScreen extends Screen {
     private void rebuild(boolean send) {
         preview.clear();
         closeMesh();
+        Map<BlockPos, BlockSpec> b = Resolver.specs(Catalog.client, new Selection(currentId(), params, Map.of()));
+        base = b == null ? Map.of() : b;
+        slotMap = Resolver.slots(Catalog.client, currentId(), base);
+        overrides.keySet().retainAll(slotMap.keySet()); // e.g. after a size change
         Map<BlockPos, BlockSpec> specs = Resolver.specs(Catalog.client, selection());
+        checks = specs == null ? List.of() : Resolver.check(Catalog.client, currentId(), slotMap, specs);
         if (specs != null) specs.forEach((p, spec) -> {
             BlockState s = Resolver.state(spec);
             if (s != null) preview.put(p, s);
@@ -126,7 +160,7 @@ public class EditorScreen extends Screen {
         if (layer > bounds.dy()) layer = 0;
         List<Tab> t = new ArrayList<>();
         if (generator().isPresent()) t.add(Tab.SETTINGS);
-        if (!slots().isEmpty()) t.add(Tab.VARIANTS);
+        if (!slotMap.isEmpty()) t.add(Tab.VARIANTS);
         t.add(Tab.MATERIALS);
         tabs = t;
         if (!tabs.contains(tab)) tab = tabs.get(0);
@@ -134,9 +168,15 @@ public class EditorScreen extends Screen {
         if (send) Net.CHANNEL.sendToServer(editing != null ? new Net.UpdatePlaced(editing.id(), selection().save(), false) : new Net.SetSelection(selection().save()));
     }
 
+    /** Sets in the structure with their slot counts, in first-appearance order. */
     private Map<VariantSet, Integer> slots() {
-        Map<BlockPos, BlockSpec> base = Resolver.specs(Catalog.client, new Selection(currentId(), params, Map.of()));
-        return base == null ? Map.of() : Resolver.slotCounts(Catalog.client, currentId(), base);
+        Map<VariantSet, Integer> out = new LinkedHashMap<>();
+        slotMap.values().forEach(set -> out.merge(set, 1, Integer::sum));
+        return out;
+    }
+
+    private int problems() {
+        return (int) checks.stream().filter(c -> !c.ok()).count();
     }
 
     // ---------- side panel lines ----------
@@ -199,8 +239,8 @@ public class EditorScreen extends Screen {
     }
 
     /** Icon grid of one variant set: count badges; click +1, right-click -1, shift-click fill, shift-right-click clear. */
-    private Line grid(VariantSet set, int slots) {
-        Map<String, Integer> c = counts.computeIfAbsent(set.id(), k -> new LinkedHashMap<>());
+    private Line grid(VariantSet set) {
+        List<BlockPos> setSlots = slotsOf(set.id());
         List<String> blocks = set.blocks();
         return new Line() {
             int cols(int w) {
@@ -213,28 +253,20 @@ public class EditorScreen extends Screen {
             }
 
             @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
-                int used = VariantCounts.used(c);
+                int used = VariantCounts.used(setSlots, overrides), slots = setSlots.size();
                 g.fill(x, y + 2, x + w, y + 6, CELL);
                 g.fill(x, y + 2, x + w * used / Math.max(1, slots), y + 6, GREEN);
-                String left = Component.translatable("mbplacer.gui.unchanged", slots - used).getString();
-                g.drawString(font, left, x, y + 9, DIM, false);
+                g.drawString(font, Component.translatable("mbplacer.gui.unchanged", slots - used), x, y + 9, DIM, false);
                 int cols = cols(w), gy = y + GRID_TOP;
                 for (int i = 0; i < blocks.size(); i++) {
                     int cx = x + (i % cols) * CELL_SIZE, cy = gy + (i / cols) * CELL_SIZE;
-                    int n = c.getOrDefault(blocks.get(i), 0);
+                    int n = VariantCounts.count(setSlots, overrides, blocks.get(i));
                     boolean hover = in(mx, my, cx, cy, CELL_SIZE - 2, CELL_SIZE - 2);
                     g.fill(cx, cy, cx + CELL_SIZE - 2, cy + CELL_SIZE - 2, hover ? BTN_HOVER : CELL);
-                    g.renderOutline(cx, cy, CELL_SIZE - 2, CELL_SIZE - 2, n > 0 ? ACCENT : BORDER);
+                    g.renderOutline(cx, cy, CELL_SIZE - 2, CELL_SIZE - 2, n > 0 || hover ? ACCENT : BORDER);
                     ItemStack icon = iconOf(blocks.get(i));
                     g.renderItem(icon, cx + 1, cy + 1);
-                    if (n > 0) {
-                        g.pose().pushPose();
-                        g.pose().translate(0, 0, 200);
-                        String s = String.valueOf(n);
-                        g.fill(cx + CELL_SIZE - 3 - font.width(s) - 1, cy + CELL_SIZE - 11, cx + CELL_SIZE - 2, cy + CELL_SIZE - 2, 0xE0000000);
-                        g.drawString(font, s, cx + CELL_SIZE - 2 - font.width(s), cy + CELL_SIZE - 10, YELLOW, false);
-                        g.pose().popPose();
-                    }
+                    if (n > 0) badge(g, cx, cy, n);
                     if (hover) setTooltipForNextRenderPass(Component.literal((icon.isEmpty() ? blocks.get(i) : icon.getHoverName().getString())
                             + "\n" + Component.translatable("mbplacer.gui.grid_tip", n).getString()));
                 }
@@ -244,13 +276,23 @@ public class EditorScreen extends Screen {
                 int cols = cols(w), i = (int) ((mx - x) / CELL_SIZE) + (int) ((my - y - GRID_TOP) / CELL_SIZE) * cols;
                 if (my < y + GRID_TOP || mx >= x + cols * CELL_SIZE || i < 0 || i >= blocks.size()) return false;
                 String b = blocks.get(i);
-                if (button == 1) VariantCounts.add(c, b, hasShiftDown() ? -slots : -1, slots);
-                else if (hasShiftDown()) VariantCounts.fill(c, b, slots);
-                else VariantCounts.add(c, b, 1, slots);
+                if (button == 1 && hasShiftDown()) VariantCounts.clear(setSlots, overrides, b);
+                else if (button == 1) VariantCounts.remove(setSlots, overrides, b);
+                else if (hasShiftDown()) VariantCounts.fill(setSlots, overrides, b);
+                else VariantCounts.add(setSlots, overrides, b);
                 rebuild(true);
                 return true;
             }
         };
+    }
+
+    private void badge(GuiGraphics g, int cx, int cy, int n) {
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 200);
+        String s = String.valueOf(n);
+        g.fill(cx + CELL_SIZE - 3 - font.width(s) - 1, cy + CELL_SIZE - 11, cx + CELL_SIZE - 2, cy + CELL_SIZE - 2, 0xE0000000);
+        g.drawString(font, s, cx + CELL_SIZE - 2 - font.width(s), cy + CELL_SIZE - 10, YELLOW, false);
+        g.pose().popPose();
     }
 
     private Line actionLine(Component label, Runnable action) {
@@ -305,11 +347,20 @@ public class EditorScreen extends Screen {
                             d -> { params[idx] = p.clamp(params[idx] + d); rebuild(true); }));
                 }
             });
-            case VARIANTS -> slots().forEach((set, n) -> {
-                int used = VariantCounts.used(counts.getOrDefault(set.id(), Map.of()));
-                out.add(header(setName(set), used + " / " + n));
-                out.add(grid(set, n));
-            });
+            case VARIANTS -> {
+                if (selectedSlot != null && slotMap.containsKey(selectedSlot)) selectedLines(out);
+                // MM-style families: the structure needs as many of each kind as the blueprint has
+                if (!checks.isEmpty()) {
+                    out.add(header(Component.translatable(problems() == 0 ? "mbplacer.gui.check_ok" : "mbplacer.gui.check_bad"), ""));
+                    for (Resolver.Check c : checks)
+                        out.add(text(Component.literal(setName(c.set()).getString() + "  " + c.actual() + " / " + c.required()), c.ok() ? GREEN : RED));
+                }
+                out.add(text(Component.translatable("mbplacer.gui.pick_hint"), DIM));
+                slots().forEach((set, n) -> {
+                    out.add(header(setName(set), VariantCounts.used(slotsOf(set.id()), overrides) + " / " + n));
+                    out.add(grid(set));
+                });
+            }
             case MATERIALS -> {
                 out.add(text(Component.translatable("mbplacer.gui.me." + ClientData.me.name()), ClientData.me == Materials.MeStatus.CONNECTED ? GREEN : DIM));
                 if (!ClientData.reportFor.equals(currentId())) {
@@ -411,7 +462,14 @@ public class EditorScreen extends Screen {
         g.renderOutline(vx, vy, vw, vh, BORDER);
         g.enableScissor(vx + 1, vy + 1, vx + vw - 1, vy + vh - 1);
         if (mesh == null && !preview.isEmpty()) mesh = new StructureMesh(shown());
-        if (mesh != null) view.draw(g, mesh, vx, vy, vw - 20, vh, bounds);
+        hoveredSlot = null;
+        if (!draggingSlider && in(mx, my, vx, vy, vw - 20, vh)) {
+            BlockPos p = view.pick(mx, my, shown().keySet());
+            if (p != null && slotMap.containsKey(p)) hoveredSlot = p;
+        }
+        if (mesh != null) view.draw(g, mesh, vx, vy, vw - 20, vh, bounds, hoveredSlot, selectedSlot);
+        if (hoveredSlot != null) setTooltipForNextRenderPass(Component.literal(iconOf(blockAt(hoveredSlot)).getHoverName().getString()
+                + "\n" + Component.translatable("mbplacer.gui.pick_tip").getString()));
         g.disableScissor();
         // toolbar
         int bx = vx + 4, by = vy + 4;
@@ -429,7 +487,89 @@ public class EditorScreen extends Screen {
         int ky = sb - (sb - st) * shownLayers / Math.max(1, layers);
         g.fill(sx, ky - 3, sx + 10, ky + 3, draggingSlider || in(mx, my, sx - 2, st - 4, 14, sb - st + 8) ? ACCENT : BTN_ON);
         String lt = layer == 0 ? Component.translatable("mbplacer.gui.layers_all").getString() : layer + "/" + layers;
-        g.drawCenteredString(font, lt, sx + 5, st - 12, DIM);
+        g.drawCenteredString(font, lt, sx + 5, sb + 6, DIM); // under the slider: the block count sits top right
+    }
+
+    /** The block a slot has now: the player's choice, else the blueprint's. */
+    private String blockAt(BlockPos pos) {
+        return overrides.getOrDefault(pos, base.get(pos).id());
+    }
+
+    /** Edits this slot in the side panel (Variants tab), keeping the view clear. */
+    private void select(BlockPos pos) {
+        selectedSlot = pos;
+        if (tabs.contains(Tab.VARIANTS)) tab = Tab.VARIANTS;
+        sideScroll = 0;
+        lines = buildLines();
+    }
+
+    /** The previous or next swappable block, in position order, wrapping around. */
+    private void step(int d) {
+        List<BlockPos> all = List.copyOf(slotMap.keySet());
+        int i = all.indexOf(selectedSlot);
+        if (!all.isEmpty()) select(all.get(Math.floorMod(i + d, all.size())));
+    }
+
+    private void choose(String block) {
+        if (block.equals(base.get(selectedSlot).id())) overrides.remove(selectedSlot);
+        else overrides.put(selectedSlot, block);
+        rebuild(true);
+    }
+
+    /** "Selected block": its name with prev/next/close, then one labelled row of choices per set of its family. */
+    private void selectedLines(List<Line> out) {
+        BlockPos pos = selectedSlot;
+        String now = blockAt(pos), original = base.get(pos).id();
+        out.add(new Line() {
+            @Override public int height() { return 22; }
+
+            @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
+                g.fill(x - 3, y, x + w + 3, y + height(), 0x334FD1FF);
+                g.renderItem(iconOf(now), x, y + 3);
+                g.drawString(font, font.plainSubstrByWidth(iconOf(now).getHoverName().getString(), w - 18 - 51), x + 19, y + 7, TEXT, false);
+                if (Ui.button(g, x + w - 49, y + 4, 15, 15, Icon.LEFT, false, mx, my)) setTooltipForNextRenderPass(Component.translatable("mbplacer.gui.slot_prev"));
+                if (Ui.button(g, x + w - 32, y + 4, 15, 15, Icon.RIGHT, false, mx, my)) setTooltipForNextRenderPass(Component.translatable("mbplacer.gui.slot_next"));
+                if (Ui.button(g, font, x + w - 15, y + 4, 15, 15, Component.literal("x"), false, mx, my)) setTooltipForNextRenderPass(Component.translatable("gui.done"));
+            }
+
+            @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
+                if (in(mx, my, x + w - 49, y + 4, 15, 15)) step(-1);
+                else if (in(mx, my, x + w - 32, y + 4, 15, 15)) step(1);
+                else if (in(mx, my, x + w - 15, y + 4, 15, 15)) { selectedSlot = null; lines = buildLines(); }
+                else return false;
+                return true;
+            }
+        });
+        for (VariantSet set : Catalog.client.family(slotMap.get(pos), currentId())) {
+            out.add(text(setName(set), DIM));
+            List<String> blocks = set.blocks();
+            out.add(new Line() {
+                int cols(int w) { return Math.max(1, w / CELL_SIZE); }
+
+                @Override public int height() { return ((blocks.size() + cols(sideW - 12) - 1) / cols(sideW - 12)) * CELL_SIZE + 2; }
+
+                @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
+                    for (int i = 0; i < blocks.size(); i++) {
+                        String b = blocks.get(i);
+                        int cx = x + (i % cols(w)) * CELL_SIZE, cy = y + (i / cols(w)) * CELL_SIZE;
+                        boolean hover = in(mx, my, cx, cy, CELL_SIZE - 2, CELL_SIZE - 2), on = b.equals(now);
+                        g.fill(cx, cy, cx + CELL_SIZE - 2, cy + CELL_SIZE - 2, on ? BTN_ON : hover ? BTN_HOVER : CELL);
+                        g.renderOutline(cx, cy, CELL_SIZE - 2, CELL_SIZE - 2, on || hover ? ACCENT : b.equals(original) ? DIM : BORDER);
+                        ItemStack icon = iconOf(b);
+                        g.renderItem(icon, cx + 1, cy + 1);
+                        if (hover) setTooltipForNextRenderPass(Component.literal(icon.getHoverName().getString()
+                                + (b.equals(original) ? "\n" + Component.translatable("mbplacer.gui.pick_default").getString() : "")));
+                    }
+                }
+
+                @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
+                    int c = (int) ((mx - x) / CELL_SIZE), i = c + (int) ((my - y) / CELL_SIZE) * cols(w);
+                    if (c >= cols(w) || i < 0 || i >= blocks.size()) return false;
+                    choose(blocks.get(i));
+                    return true;
+                }
+            });
+        }
     }
 
     private void renderSide(GuiGraphics g, int mx, int my) {
@@ -440,7 +580,7 @@ public class EditorScreen extends Screen {
         for (int i = 0; i < tabs.size(); i++) {
             Tab t = tabs.get(i);
             Component label = Component.translatable("mbplacer.gui.tab." + t.name().toLowerCase(Locale.ROOT));
-            int m = t == Tab.MATERIALS ? missing() : 0;
+            int m = t == Tab.MATERIALS ? missing() : t == Tab.VARIANTS ? problems() : 0;
             if (m > 0) label = label.copy().append(Component.literal(" " + m).withStyle(s -> s.withColor(RED)));
             button(g, font, x + 4 + i * tw, top + 4, tw - 2, TAB, label, t == tab, mx, my);
         }
@@ -475,7 +615,7 @@ public class EditorScreen extends Screen {
             int next = in(mx, my, tx, y, 16, 16) ? tier - 1 : in(mx, my, x0 + w - PAD - 16, y, 16, 16) ? tier + 1 : tier;
             if (next != tier) {
                 tier = Math.max(0, Math.min(entry.members().size() - 1, next));
-                counts.clear();
+                overrides.clear();
                 rebuild(true);
                 return true;
             }
@@ -488,6 +628,13 @@ public class EditorScreen extends Screen {
         if (in(mx, my, sliderX() - 2, sliderTop() - 4, 14, sliderBottom() - sliderTop() + 8)) {
             draggingSlider = true;
             setLayer(my);
+            return true;
+        }
+        if (button == 0 && hoveredSlot != null) {
+            // a click (not a drag) on a swappable block selects it, see mouseReleased
+            pressX = mx;
+            pressY = my;
+            pressSlot = hoveredSlot;
             return true;
         }
         int x = sideX(), tw = (sideW - 8) / tabs.size();
@@ -522,6 +669,8 @@ public class EditorScreen extends Screen {
     @Override
     public boolean mouseReleased(double mx, double my, int button) {
         draggingSlider = false;
+        if (pressSlot != null && Math.abs(mx - pressX) + Math.abs(my - pressY) < 4) select(pressSlot);
+        pressSlot = null;
         return super.mouseReleased(mx, my, button);
     }
 
@@ -558,6 +707,16 @@ public class EditorScreen extends Screen {
     @Override
     public void removed() {
         closeMesh();
+    }
+
+    @Override
+    public boolean keyPressed(int key, int scan, int mods) {
+        if (selectedSlot != null && key == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
+            selectedSlot = null;
+            lines = buildLines();
+            return true;
+        }
+        return super.keyPressed(key, scan, mods);
     }
 
     @Override

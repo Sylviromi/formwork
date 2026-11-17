@@ -60,7 +60,33 @@ class VariantTest {
     }
 
     @Test
-    void slotCountsFindTheSet() {
-        assertEquals(4, Resolver.slotCounts(catalog(), MINER, base()).values().iterator().next());
+    void slotsFindTheSetAndCountsBecomeOverrides() {
+        var slots = Resolver.slots(catalog(), MINER, base());
+        assertEquals(4, slots.size());
+        var o = Resolver.countsToOverrides(slots, Map.of("mbplacer:voidminer_modifiers", Map.of(SPEED, 2)));
+        assertEquals(Map.of(new BlockPos(0, 0, 0), SPEED, new BlockPos(1, 0, 0), SPEED), o, "first slots in position order");
+    }
+
+    private static final String E_IN = "mm:tiny_energy_port_input", I_IN = "mm:tiny_item_port_input", MM = "mbtool:dev_mm/water_condenser_tier_1";
+
+    /** Two MM-style sets in one family, two energy slots in the blueprint. */
+    private static Catalog ports() {
+        Catalog c = new Catalog();
+        c.addVariants(new VariantSet("mbplacer:mm_energy_port_input", List.of(E_IN, "mm:gigantic_energy_port_input"), "", 0, "mm_ports"));
+        c.addVariants(new VariantSet("mbplacer:mm_item_port_input", List.of(I_IN, "mm:gigantic_item_port_input"), "", 0, "mm_ports"));
+        return c;
+    }
+
+    @Test
+    void familyOverridesAndTheStructureCheck() {
+        Map<BlockPos, BlockSpec> base = Map.of(new BlockPos(0, 0, 0), BlockSpec.of(E_IN), new BlockPos(1, 0, 0), BlockSpec.of(E_IN));
+        var slots = Resolver.slots(ports(), MM, base);
+        var swapped = Resolver.applyOverrides(ports(), MM, base, base, Map.of(new BlockPos(1, 0, 0), I_IN, new BlockPos(0, 0, 0), "minecraft:tnt"));
+        assertEquals(E_IN, swapped.get(new BlockPos(0, 0, 0)).id(), "blocks outside the family are ignored");
+        assertEquals(I_IN, swapped.get(new BlockPos(1, 0, 0)).id(), "any set of the family may take the slot");
+        var checks = Resolver.check(ports(), MM, slots, swapped);
+        assertTrue(checks.stream().anyMatch(c -> c.set().id().endsWith("energy_port_input") && c.required() == 2 && c.actual() == 1));
+        assertTrue(checks.stream().anyMatch(c -> c.set().id().endsWith("item_port_input") && c.required() == 0 && c.actual() == 1));
+        assertTrue(Resolver.check(ports(), MM, slots, base).stream().allMatch(Resolver.Check::ok));
     }
 }

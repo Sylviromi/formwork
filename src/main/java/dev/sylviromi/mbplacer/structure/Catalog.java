@@ -59,6 +59,12 @@ public final class Catalog {
         return global;
     }
 
+    /** The sets whose blocks may go into a slot of this set within an entry: its family, or just itself. */
+    public List<VariantSet> family(VariantSet set, String entryId) {
+        if (set.family().isEmpty()) return List.of(set);
+        return variants.values().stream().filter(s -> s.family().equals(set.family()) && s.appliesTo(entryId)).toList();
+    }
+
     public List<Entry> entries() {
         if (entries != null) return entries;
         List<Entry> out = new ArrayList<>();

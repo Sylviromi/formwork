@@ -68,5 +68,13 @@
   "mbplacer.gui.apply_tip": "Swap only the blocks that change. Materials shows what it costs.",
   "mbplacer.msg.updated": "Updated: %s blocks removed, %s placed",
   "mbplacer.gui.backward": "Back (Down arrow)",
-  "mbplacer.hud.hint": "Hold use: dismantle · Sneak + use: edit"
+  "mbplacer.hud.hint": "Hold use: dismantle · Sneak + use: edit",
+  "mbplacer.hud.updating": "Updating %s",
+  "mbplacer.gui.pick_tip": "Click to edit this block",
+  "mbplacer.gui.pick_default": "The blueprint's block",
+  "mbplacer.gui.pick_hint": "Click blocks in the view to swap",
+  "mbplacer.gui.check_ok": "Structure complete",
+  "mbplacer.gui.check_bad": "Will not form: counts differ",
+  "mbplacer.gui.slot_prev": "Previous swappable block",
+  "mbplacer.gui.slot_next": "Next swappable block"
 }

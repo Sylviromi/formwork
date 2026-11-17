@@ -32,7 +32,7 @@ import java.util.function.Supplier;
 
 /** All packets. Server to client: catalog sync and material reports. Client to server: selection, report query, craft request. */
 public final class Net {
-    private static final String VERSION = "4";
+    private static final String VERSION = "6";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(MbPlacer.ID, "main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -47,11 +47,12 @@ public final class Net {
                 buf.writeCollection(v.blocks(), FriendlyByteBuf::writeUtf);
                 buf.writeUtf(v.match());
                 buf.writeVarInt(v.columns());
+                buf.writeUtf(v.family());
             });
         }
 
         static CatalogReset read(FriendlyByteBuf b) {
-            return new CatalogReset(b.readList(buf -> new VariantSet(buf.readUtf(), buf.readList(FriendlyByteBuf::readUtf), buf.readUtf(), buf.readVarInt())));
+            return new CatalogReset(b.readList(buf -> new VariantSet(buf.readUtf(), buf.readList(FriendlyByteBuf::readUtf), buf.readUtf(), buf.readVarInt(), buf.readUtf())));
         }
     }
 
@@ -130,6 +131,18 @@ public final class Net {
         }
     }
 
+    /** A timed update of a placement started and takes this many ticks; the client animates the HUD bar itself. */
+    public record Progress(UUID placement, int ticks) {
+        void write(FriendlyByteBuf b) {
+            b.writeUUID(placement);
+            b.writeVarInt(ticks);
+        }
+
+        static Progress read(FriendlyByteBuf b) {
+            return new Progress(b.readUUID(), b.readVarInt());
+        }
+    }
+
     public record RequestCrafts() {
     }
 
@@ -160,6 +173,12 @@ public final class Net {
                 .encoder((m, b) -> {}).decoder(b -> new RequestCrafts()).consumerMainThread(Net::onRequestCrafts).add();
         CHANNEL.messageBuilder(PlacementsSync.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(PlacementsSync::write).decoder(PlacementsSync::read).consumerMainThread((m, ctx) -> { ClientData.placements = m.recs(); }).add();
+        CHANNEL.messageBuilder(Progress.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(Progress::write).decoder(Progress::read).consumerMainThread((m, ctx) -> {
+                    ClientData.progressFor = m.placement();
+                    ClientData.progressStart = System.currentTimeMillis();
+                    ClientData.progressMillis = m.ticks() * 50L;
+                }).add();
         CHANNEL.messageBuilder(UpdatePlaced.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(UpdatePlaced::write).decoder(UpdatePlaced::read).consumerMainThread(Net::onUpdatePlaced).add();
         CHANNEL.messageBuilder(SetPlacement.class, id++, NetworkDirection.PLAY_TO_SERVER)

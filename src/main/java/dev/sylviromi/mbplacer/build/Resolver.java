@@ -32,7 +32,68 @@ public final class Resolver {
             if (bp == null) return null;
             base = bp.blocks();
         }
-        return applyVariants(catalog, sel.entry(), base, sel.counts());
+        Map<BlockPos, BlockSpec> counted = applyVariants(catalog, sel.entry(), base, sel.counts());
+        return counted == null ? null : applyOverrides(catalog, sel.entry(), base, counted, sel.overrides());
+    }
+
+    /** Puts each chosen block on its slot, when the slot's family allows it; other overrides are ignored (e.g. after a size change). */
+    static Map<BlockPos, BlockSpec> applyOverrides(Catalog catalog, String entry, Map<BlockPos, BlockSpec> base, Map<BlockPos, BlockSpec> blocks,
+                                                   Map<BlockPos, String> overrides) {
+        if (overrides.isEmpty()) return blocks;
+        Map<BlockPos, BlockSpec> out = new LinkedHashMap<>(blocks);
+        overrides.forEach((pos, block) -> {
+            BlockSpec spec = base.get(pos);
+            VariantSet set = spec == null ? null : catalog.variantOf(spec.id(), entry);
+            if (set != null && catalog.family(set, entry).stream().anyMatch(f -> f.blocks().contains(block))) out.put(pos, spec.withId(block));
+        });
+        return out;
+    }
+
+    /** Swappable positions of the unmodified structure and the set each belongs to, in position order. */
+    public static Map<BlockPos, VariantSet> slots(Catalog catalog, String entry, Map<BlockPos, BlockSpec> base) {
+        Map<BlockPos, VariantSet> out = new TreeMap<>();
+        base.forEach((pos, spec) -> {
+            VariantSet set = catalog.variantOf(spec.id(), entry);
+            if (set != null) out.put(pos, set);
+        });
+        return out;
+    }
+
+    /** The old count form as overrides: each set's slots in position order get the counted blocks. */
+    public static Map<BlockPos, String> countsToOverrides(Map<BlockPos, VariantSet> slots, Map<String, Map<String, Integer>> counts) {
+        Map<BlockPos, String> out = new LinkedHashMap<>();
+        counts.forEach((setId, perBlock) -> {
+            Iterator<BlockPos> it = slots.entrySet().stream().filter(e -> e.getValue().id().equals(setId)).map(Map.Entry::getKey).iterator();
+            perBlock.forEach((block, n) -> {
+                for (int i = 0; i < n && it.hasNext(); i++) out.put(it.next(), block);
+            });
+        });
+        return out;
+    }
+
+    /** How many blocks of a set the structure has against how many the blueprint has (only for sets sharing a family). */
+    public record Check(VariantSet set, int required, int actual) {
+        public boolean ok() {
+            return required == actual;
+        }
+    }
+
+    public static List<Check> check(Catalog catalog, String entry, Map<BlockPos, VariantSet> slots, Map<BlockPos, BlockSpec> result) {
+        Map<VariantSet, int[]> counts = new LinkedHashMap<>();
+        slots.forEach((pos, set) -> {
+            if (set.family().isEmpty()) return;
+            counts.computeIfAbsent(set, k -> new int[2])[0]++;
+            BlockSpec now = result.get(pos);
+            if (now == null) return;
+            for (VariantSet f : catalog.family(set, entry))
+                if (f.blocks().contains(now.id())) {
+                    counts.computeIfAbsent(f, k -> new int[2])[1]++;
+                    break;
+                }
+        });
+        List<Check> out = new ArrayList<>();
+        counts.forEach((set, c) -> out.add(new Check(set, c[0], c[1])));
+        return out;
     }
 
     public static int[] clampedParams(Generator gen, int[] given) {
@@ -62,15 +123,6 @@ public final class Resolver {
         return out;
     }
 
-    /** How many slots each variant set has in these blocks. */
-    public static Map<VariantSet, Integer> slotCounts(Catalog catalog, String entry, Map<BlockPos, BlockSpec> base) {
-        Map<VariantSet, Integer> out = new LinkedHashMap<>();
-        base.values().forEach(s -> {
-            VariantSet set = catalog.variantOf(s.id(), entry);
-            if (set != null) out.merge(set, 1, Integer::sum);
-        });
-        return out;
-    }
 
     /** Clockwise quarter turns from base that make a structure face d (the placement card's compass). */
     public static int turnsTo(Direction base, Direction d) {

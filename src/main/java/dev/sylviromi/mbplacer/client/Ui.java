@@ -12,6 +12,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import dev.sylviromi.mbplacer.MbPlacer;
 import org.joml.Matrix4f;
+import org.joml.Vector3f;
+import org.jetbrains.annotations.Nullable;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.lwjgl.opengl.GL11;
 
 import java.util.Collection;
@@ -104,7 +110,44 @@ final class Ui {
          * Draws the mesh fitted into the box. dx/dy/dz: structure size in blocks, c*: its centre.
          * Call inside a scissor for the box.
          */
+        private static void mark(GuiGraphics g, PoseStack ps, @Nullable BlockPos pos, float r, float gr, float b, float a) {
+            if (pos == null) return;
+            var buffers = g.bufferSource();
+            AABB box = new AABB(pos).inflate(0.03);
+            LevelRenderer.addChainedFilledBoxVertices(ps, buffers.getBuffer(RenderType.debugFilledBox()),
+                    box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, r, gr, b, a);
+            buffers.endBatch(RenderType.debugFilledBox());
+        }
+
+        /** GUI-space transform of the last draw, for picking. */
+        private Matrix4f lastPose;
+
         void draw(GuiGraphics g, StructureMesh mesh, int x, int y, int w, int h, Bounds b) {
+            draw(g, mesh, x, y, w, h, b, null, null);
+        }
+
+        /** The nearest of these blocks under the mouse (at the last drawn view), or null. */
+        @Nullable
+        BlockPos pick(double mx, double my, Collection<BlockPos> blocks) {
+            if (lastPose == null) return null;
+            Matrix4f inv = new Matrix4f(lastPose).invert();
+            // larger GUI z is nearer the viewer: cast from the front to the back
+            Vector3f from = inv.transformPosition(new Vector3f((float) mx, (float) my, 1000)), to = inv.transformPosition(new Vector3f((float) mx, (float) my, -1000));
+            Vec3 a = new Vec3(from.x, from.y, from.z), c = new Vec3(to.x, to.y, to.z);
+            BlockPos best = null;
+            double bestDist = Double.MAX_VALUE;
+            for (BlockPos p : blocks) {
+                var hit = new AABB(p).clip(a, c);
+                if (hit.isPresent() && hit.get().distanceToSqr(a) < bestDist) {
+                    bestDist = hit.get().distanceToSqr(a);
+                    best = p;
+                }
+            }
+            return best;
+        }
+
+        /** hover: lightly marked block; selected: the block being edited. */
+        void draw(GuiGraphics g, StructureMesh mesh, int x, int y, int w, int h, Bounds b, @Nullable BlockPos hover, @Nullable BlockPos selected) {
             long now = Util.getMillis();
             if (spin) yaw += (now - last) * 0.03f;
             last = now;
@@ -125,6 +168,9 @@ final class Ui {
             ps.translate(-b.cx(), -b.cy(), -b.cz());
             RenderSystem.enableDepthTest();
             mesh.draw(new Matrix4f(RenderSystem.getModelViewMatrix()).mul(ps.last().pose()), RenderSystem.getProjectionMatrix());
+            lastPose = new Matrix4f(ps.last().pose());
+            mark(g, ps, selected, 0.31f, 0.82f, 1f, 0.55f);
+            if (hover != null && !hover.equals(selected)) mark(g, ps, hover, 1f, 0.82f, 0.4f, 0.4f);
             ps.popPose();
             // GUI drawn after this (buttons, text, tooltips) must not be hidden behind the model
             RenderSystem.clear(GL11.GL_DEPTH_BUFFER_BIT, Minecraft.ON_OSX);

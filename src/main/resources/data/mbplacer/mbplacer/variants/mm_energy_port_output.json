@@ -6,5 +6,6 @@
     "mm:big_energy_port_output",
     "mm:enormous_energy_port_output",
     "mm:gigantic_energy_port_output"
-  ]
+  ],
+  "family": "mm_ports"
 }

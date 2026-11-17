@@ -113,11 +113,11 @@ public final class WorldGhost {
     }
 
     private static String placedKey = "";
-    private static StructureMesh placedMesh;
+    private static Silhouette placedMesh;
 
     /**
-     * A placed multiblock under the crosshair: its own blocks tinted (red and stronger while the use key is held)
-     * and corner brackets on its bounds. The tint mesh is scaled up a hair around the centre so it sits just outside the real faces.
+     * A placed multiblock under the crosshair: a flat-coloured shell over its blocks (red and stronger while the use key is
+     * held) and corner brackets on its bounds.
      */
     private static void renderPlaced(RenderLevelStageEvent event, Minecraft mc, Placements.Rec rec) {
         BlockPos t = rec.target();
@@ -126,34 +126,20 @@ public final class WorldGhost {
             placedKey = key;
             if (placedMesh != null) placedMesh.close();
             placedMesh = null;
-            var blocks = Dismantler.blocks(Catalog.client, rec);
-            if (blocks != null && !blocks.isEmpty()) {
-                Map<BlockPos, BlockState> relBlocks = new LinkedHashMap<>();
-                blocks.forEach((p, b) -> relBlocks.put(p.subtract(t), b.state()));
-                placedMesh = new StructureMesh(relBlocks);
-            }
+            var blocks = Placements.positions(rec, Catalog.client);
+            if (!blocks.isEmpty()) placedMesh = new Silhouette(blocks.stream().map(p -> p.subtract(t)).collect(java.util.stream.Collectors.toSet()));
         }
         AABB box = AABB.of(rec.box()).move(-t.getX(), -t.getY(), -t.getZ());
         float time = (mc.level.getGameTime() + event.getPartialTick()) / 5f;
         float progress = Hud.progress(mc, rec);
         // cyan while pointing, turning red while the use key is held to dismantle
         float r = 0.45f + 0.55f * progress, g = 0.85f - 0.55f * progress, b = 1f - 0.7f * progress;
-        float alpha = 0.16f + 0.06f * (float) Math.sin(time) + 0.45f * progress;
+        float alpha = 0.2f + 0.06f * (float) Math.sin(time) + 0.35f * progress;
         PoseStack ps = event.getPoseStack();
         Vec3 cam = event.getCamera().getPosition();
         ps.pushPose();
         ps.translate(t.getX() - cam.x, t.getY() - cam.y, t.getZ() - cam.z);
-        if (placedMesh != null) {
-            Vec3 c = box.getCenter();
-            double half = Math.max(0.5, Math.min(box.getXsize(), Math.min(box.getYsize(), box.getZsize())) / 2);
-            float k = (float) (1 + 0.012 / half);
-            ps.pushPose();
-            ps.translate(c.x, c.y, c.z);
-            ps.scale(k, k, k);
-            ps.translate(-c.x, -c.y, -c.z);
-            placedMesh.drawGhost(ps.last().pose(), event.getProjectionMatrix(), r, g, b, alpha);
-            ps.popPose();
-        }
+        if (placedMesh != null) placedMesh.draw(ps.last().pose(), event.getProjectionMatrix(), r, g, b, alpha);
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
         brackets(ps, buffers.getBuffer(RenderType.lines()), box.inflate(0.004), r, g, b);
         buffers.endBatch(RenderType.lines());

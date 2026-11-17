@@ -10,5 +10,6 @@
     "mm:titanic_item_port_output",
     "mm:compressed_titanic_item_port_output",
     "mm:super_compressed_titanic_item_port_output"
-  ]
+  ],
+  "family": "mm_ports"
 }

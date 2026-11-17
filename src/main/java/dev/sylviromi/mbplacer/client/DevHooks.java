@@ -1,11 +1,12 @@
 package dev.sylviromi.mbplacer.client;
 
 import dev.sylviromi.mbplacer.MbPlacer;
-import dev.sylviromi.mbplacer.build.Dismantler;
 import dev.sylviromi.mbplacer.build.Placements;
 import dev.sylviromi.mbplacer.build.Placer;
 import dev.sylviromi.mbplacer.build.Resolver;
+import dev.sylviromi.mbplacer.build.Updater;
 import dev.sylviromi.mbplacer.item.PlacerItem;
+import dev.sylviromi.mbplacer.net.ClientData;
 import dev.sylviromi.mbplacer.structure.Catalog;
 import dev.sylviromi.mbplacer.structure.Selection;
 import net.minecraft.client.KeyMapping;
@@ -13,70 +14,88 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.ForgeRegistries;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**
  * Dev-only test run, enabled with -Dmbplacer.dev=true (./gradlew runClient -Pmbdev).
- * Clears the test area, shows the browser, editor tabs (Mekanism, void miner, Masterful Machinery), placement card and ghost,
- * saves screenshots to run/screenshots, then places an MM water condenser with a port variant, dismantles it and logs the result.
- * MM needs `./gradlew copyPackMods`, the pack's MM startup scripts in run/kubejs and tools/dev_mm_structures.py.
+ * Clears the test area, screenshots the browser, editor tabs (Mekanism, void miner twice for its animated textures,
+ * Masterful Machinery with the structure check and block picker), placement card and ghost, then places a tier 9 void
+ * miner with speed modifiers, edits it to item modifiers (a timed job) and dismantles it by holding use, logging each
+ * result. Then quits. MM needs `./gradlew copyPackMods`, the pack's MM startup scripts in run/kubejs and
+ * tools/dev_mm_structures.py.
  */
 @Mod.EventBusSubscriber(modid = MbPlacer.ID, value = Dist.CLIENT)
 public final class DevHooks {
     private static final boolean ON = Boolean.getBoolean("mbplacer.dev");
     private static final String TURBINE = "mbplacer:gen/mekanism_turbine", VOID_MINER = "mbtool:voidminer/voidminer",
-            FISSION = "mbplacer:gen/mekanism_fission_reactor", MM = "mbtool:dev_mm/water_condenser",
-            MM_ENERGY = "mbplacer:mm_energy_port_input", TINY_PORT = "mm:tiny_energy_port_input";
+            FISSION = "mbplacer:gen/mekanism_fission_reactor", MM = "mbtool:dev_mm/water_condenser", MODIFIERS = "mbplacer:voidminer_modifiers",
+            SPEED = "voidminers:ultimate_speed_modifier", ITEM = "voidminers:ultimate_item_modifier";
     private static int tick;
 
-    /** action at tick 0 of the step, screenshot at tick `at`. */
-    private record Step(String shot, int at, Consumer<Minecraft> action) {
-        Step(String shot, Consumer<Minecraft> action) {
-            this(shot, 50, action);
-        }
+    /** At tick `at` of the run: an action, and/or a screenshot named shot. */
+    private record Step(int at, String shot, Consumer<Minecraft> action) {
     }
 
-    private static final List<Step> STEPS = List.of(
-            new Step("browser", mc -> mc.setScreen(new BrowserScreen())),
-            new Step("editor_settings", mc -> editor(mc, TURBINE, "SETTINGS", null)),
-            new Step("editor_variants", mc -> editor(mc, VOID_MINER, "VARIANTS", e -> {
-                e.devCount("mbplacer:voidminer_modifiers", "voidminers:verdium_speed_modifier", 4);
-                e.devCount("mbplacer:voidminer_modifiers", "voidminers:verdium_energy_modifier", 4);
-            })),
-            new Step("editor_mm", mc -> editor(mc, MM, "VARIANTS", e -> e.devCount(MM_ENERGY, TINY_PORT, 1))),
-            new Step("editor_materials", mc -> editor(mc, FISSION, "MATERIALS", null)),
-            new Step("editor_layers", mc -> editor(mc, FISSION, "SETTINGS", e -> e.devLayer(3))),
-            new Step("placement", mc -> {
-                editor(mc, TURBINE, "SETTINGS", null);
-                mc.setScreen(null);
-                mc.player.setXRot(55);
-                mc.setScreen(new PlacementScreen());
-            }),
-            new Step("ghost", mc -> mc.setScreen(null)),
-            new Step("hover_dismantle", DevHooks::placeAndAim),
-            new Step("hover_edit", mc -> {
-                setDismantle(false);
-                onServer(mc, DevHooks::updateLooked);
-            }),
-            new Step("dismantle_hold", 12, mc -> {
-                setDismantle(true);
-                KeyMapping.set(mc.options.keyUse.getKey(), true);
-            }));
+    private static final List<Step> STEPS = new ArrayList<>();
+
+    private static void step(int at, String shot, Consumer<Minecraft> action) {
+        STEPS.add(new Step(at, shot, action));
+    }
+
+    static {
+        int t = 60;
+        step(20, null, mc -> onServer(mc, DevHooks::reset));
+        step(t, null, mc -> mc.setScreen(new BrowserScreen()));
+        step(t += 50, "browser", null);
+        step(t += 10, null, mc -> editor(mc, TURBINE, "SETTINGS", null));
+        step(t += 50, "editor_settings", null);
+        step(t += 10, null, mc -> editor(mc, VOID_MINER, "VARIANTS", e -> {
+            e.devCount(MODIFIERS, "voidminers:verdium_speed_modifier", 4);
+            e.devCount(MODIFIERS, "voidminers:verdium_energy_modifier", 4);
+        }));
+        step(t += 50, "editor_variants", null);
+        step(t += 55, "editor_variants_later", null); // 2.75 s later: the ultimate textures change frame every 2 s
+        step(t += 5, null, mc -> editor(mc, MM, "VARIANTS", EditorScreen::devWrongPort));
+        step(t += 50, "editor_mm_check", null);
+        step(t += 5, null, mc -> { if (mc.screen instanceof EditorScreen e) e.devPickFirstSlot(); });
+        step(t += 20, "editor_mm_picker", null);
+        step(t += 10, null, mc -> editor(mc, FISSION, "MATERIALS", null));
+        step(t += 50, "editor_materials", null);
+        step(t += 10, null, mc -> editor(mc, FISSION, "SETTINGS", e -> e.devLayer(3)));
+        step(t += 50, "editor_layers", null);
+        step(t += 10, null, mc -> {
+            editor(mc, TURBINE, "SETTINGS", null);
+            mc.setScreen(null);
+            mc.player.setXRot(55);
+            mc.setScreen(new PlacementScreen());
+        });
+        step(t += 50, "placement", null);
+        step(t += 10, null, mc -> mc.setScreen(null));
+        step(t += 40, "ghost", null);
+        step(t += 10, null, DevHooks::placeVoidMiner);
+        step(t += 40, null, DevHooks::aimAtPlaced);
+        step(t += 10, "hover", null);
+        step(t += 10, null, mc -> onServer(mc, DevHooks::updateLooked));
+        step(t += 15, "updating", null);
+        step(t += 110, null, mc -> onServer(mc, sp -> log(sp, "after update")));
+        step(t += 10, null, mc -> KeyMapping.set(mc.options.keyUse.getKey(), true));
+        step(t += 30, "dismantle_hold", null);
+        step(t += 90, null, mc -> {
+            KeyMapping.set(mc.options.keyUse.getKey(), false);
+            onServer(mc, sp -> log(sp, "after holding use"));
+        });
+        step(t += 20, null, Minecraft::stop);
+    }
 
     private DevHooks() {
     }
@@ -95,18 +114,11 @@ public final class DevHooks {
         Minecraft mc = Minecraft.getInstance();
         if (!ON || e.phase != TickEvent.Phase.END || mc.player == null) return;
         tick++;
-        if (tick == 20) onServer(mc, DevHooks::reset);
-        int step = tick / 60 - 1, phase = tick % 60;
-        if (step >= 0 && step < STEPS.size()) {
-            if (phase == 0) STEPS.get(step).action().accept(mc);
-            if (phase == STEPS.get(step).at()) shot(mc, STEPS.get(step).shot());
-        }
-        if (step == STEPS.size() && phase == 0) {
-            KeyMapping.set(mc.options.keyUse.getKey(), false);
-            onServer(mc, sp -> MbPlacer.LOG.info("dev: after holding use: {} placements left, {} tiny ports in the old area",
-                    Placements.of(sp.serverLevel()).all().size(), count(sp.serverLevel(), lastArea, TINY_PORT)));
-        }
-        if (step == STEPS.size() && phase == 20) mc.stop();
+        for (Step s : STEPS)
+            if (s.at() == tick) {
+                if (s.action() != null) s.action().accept(mc);
+                if (s.shot() != null) shot(mc, s.shot());
+            }
     }
 
     private static void onServer(Minecraft mc, Consumer<ServerPlayer> action) {
@@ -118,60 +130,87 @@ public final class DevHooks {
         });
     }
 
-    /** Fresh start: the tool in hand, no placements left from earlier runs, empty air around the player. */
+    /** Fresh start: only the tool in the inventory, no placements left from earlier runs, empty air around the player. */
     private static void reset(ServerPlayer sp) {
         ServerLevel level = sp.serverLevel();
         Placements p = Placements.of(level);
         List.copyOf(p.all()).forEach(r -> p.remove(level, r.id()));
+        sp.getInventory().clearContent();
         sp.getInventory().setItem(sp.getInventory().selected, new ItemStack(MbPlacer.PLACER.get()));
         var src = sp.createCommandSourceStack().withSuppressedOutput().withPermission(4);
-        sp.server.getCommands().performPrefixedCommand(src, "fill ~-15 ~ ~-15 ~15 ~20 ~15 air");
+        sp.server.getCommands().performPrefixedCommand(src, "fill ~-15 ~ ~-5 ~15 ~20 ~25 air");
+        sp.server.getCommands().performPrefixedCommand(src, "time set day");
+        sp.server.getCommands().performPrefixedCommand(src, "gamemode creative"); // edits are paid for; the test inventory is empty
     }
 
-    /** Server: places an MM water condenser with one tiny energy port 3 blocks ahead; client: dismantle mode, looking at it. */
-    private static void placeAndAim(Minecraft mc) {
+    private static String tier9(Catalog c) {
+        return c.entries().stream().filter(en -> en.key().equals(VOID_MINER)).findFirst().map(en -> en.members().get(en.members().size() - 1)).orElseThrow();
+    }
+
+    /** The first n modifier slots of the tier 9 void miner set to this block. */
+    private static Map<BlockPos, String> modifiers(String block, int n) {
+        String id = tier9(Catalog.server);
+        var slots = Resolver.slots(Catalog.server, id, Resolver.specs(Catalog.server, new Selection(id, new int[0], Map.of())));
+        Map<BlockPos, String> out = new LinkedHashMap<>();
+        slots.entrySet().stream().filter(en -> en.getValue().id().equals(MODIFIERS)).limit(n).forEach(en -> out.put(en.getKey(), block));
+        return out;
+    }
+
+    /** Server: a tier 9 void miner with 4 speed modifiers 3 blocks ahead (with a record); client: looking at it. */
+    private static void placeVoidMiner(Minecraft mc) {
         onServer(mc, sp -> {
             Direction f = sp.getDirection();
             BlockPos target = sp.blockPosition().relative(f, 3);
-            String id = Catalog.server.entries().stream().filter(en -> en.key().equals(MM)).findFirst().map(en -> en.members().get(0)).orElse(TURBINE);
-            Selection sel = new Selection(id, new int[0], id.equals(TURBINE) ? Map.of() : Map.of(MM_ENERGY, Map.of(TINY_PORT, 1)));
+            Selection sel = new Selection(tier9(Catalog.server), new int[0], Map.of(), modifiers(SPEED, 4));
             var blocks = Resolver.world(Resolver.specs(Catalog.server, sel), target, f);
             Placer.put(sp.serverLevel(), blocks, sp);
             Placements.of(sp.serverLevel()).add(sp.serverLevel(), Placements.record(blocks, sel.save(), target, f, sp.getUUID()));
-            MbPlacer.LOG.info("dev: placed {} ({} blocks, {} tiny ports) at {} facing {}", id, blocks.size(), count(sp.serverLevel(), blocks.keySet(), TINY_PORT), target, f);
+            log(sp, "placed at " + target + " facing " + f);
         });
-        setDismantle(true);
-        mc.player.setXRot(20);
+        mc.player.setXRot(15);
     }
 
-    private static long count(ServerLevel level, java.util.Collection<BlockPos> at, String block) {
-        return at.stream().filter(p -> block.equals(String.valueOf(ForgeRegistries.BLOCKS.getKey(level.getBlockState(p).getBlock())))).count();
+    /** Client: looks at the placed block nearest to the eyes (only real blocks of a placement count as pointing at it). */
+    private static void aimAtPlaced(Minecraft mc) {
+        var eye = mc.player.getEyePosition();
+        ClientData.placements.stream().flatMap(r -> Placements.positions(r, Catalog.client).stream())
+                .min(Comparator.comparingDouble(p -> p.getCenter().distanceToSqr(eye)))
+                .ifPresent(p -> mc.player.lookAt(net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES, p.getCenter()));
     }
 
-    private static java.util.Set<BlockPos> lastArea = java.util.Set.of();
-
-    private static void setDismantle(boolean on) {
-        ItemStack tool = WorldGhost.heldTool();
-        CompoundTag t = PlacerItem.placementTag(tool);
-        ClientHooks.setPlacement(tool, t);
-    }
-
-    /** Edits the placement in view to two tiny energy ports and logs the count before and after. */
+    /** Edits the placement in view: the 4 speed modifiers become item modifiers (runs as a timed job). */
     private static void updateLooked(ServerPlayer sp) {
         Placements.Rec rec = PlacerItem.placementLookedAt(sp);
         if (rec == null) {
             MbPlacer.LOG.warn("dev: update: no placement in view");
             return;
         }
-        var before = Dismantler.blocks(Catalog.server, rec).keySet();
-        long tiny = count(sp.serverLevel(), before, TINY_PORT);
         Selection sel = Selection.load(rec.selection());
-        Selection two = new Selection(sel.entry(), sel.params(), Map.of(MM_ENERGY, Map.of(TINY_PORT, 2)));
-        dev.sylviromi.mbplacer.build.Updater.apply(sp, sp.getMainHandItem(), rec.id(), two);
-        Placements.Rec now = PlacerItem.placementLookedAt(sp);
-        lastArea = java.util.Set.copyOf(before);
-        MbPlacer.LOG.info("dev: update: tiny ports {} -> {}, record updated: {}", tiny, count(sp.serverLevel(), before, TINY_PORT),
-                now != null && Selection.load(now.selection()).counts().equals(two.counts()));
+        Updater.apply(sp, sp.getMainHandItem(), rec.id(), new Selection(sel.entry(), sel.params(), Map.of(), modifiers(ITEM, 4)));
+        log(sp, "update started");
+    }
+
+    private static BlockPos lastMin, lastMax;
+
+    /** Logs placements left and the modifiers inside the newest placement's bounds (or the last bounds seen). */
+    private static void log(ServerPlayer sp, String what) {
+        ServerLevel level = sp.serverLevel();
+        var all = Placements.of(level).all();
+        all.stream().reduce((a, b) -> b).ifPresent(r -> {
+            lastMin = new BlockPos(r.box().minX(), r.box().minY(), r.box().minZ());
+            lastMax = new BlockPos(r.box().maxX(), r.box().maxY(), r.box().maxZ());
+        });
+        long speed = 0, item = 0, blocks = 0;
+        if (lastMin != null)
+            for (BlockPos p : BlockPos.betweenClosed(lastMin, lastMax)) {
+                var s = level.getBlockState(p);
+                if (s.isAir()) continue;
+                blocks++;
+                String id = String.valueOf(ForgeRegistries.BLOCKS.getKey(s.getBlock()));
+                if (id.equals(SPEED)) speed++;
+                if (id.equals(ITEM)) item++;
+            }
+        MbPlacer.LOG.info("dev: {}: {} placements, {} blocks in bounds, {} speed / {} item modifiers", what, all.size(), blocks, speed, item);
     }
 
     private static void shot(Minecraft mc, String name) {

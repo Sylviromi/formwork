@@ -13,6 +13,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.util.BlockSnapshot;
 import net.minecraftforge.event.ForgeEventFactory;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.network.PacketDistributor;
+import dev.sylviromi.mbplacer.net.Net;
+import net.minecraft.world.level.block.Block;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
@@ -58,6 +62,7 @@ public final class Updater {
         ServerLevel level = player.serverLevel();
         Placements placements = Placements.of(level);
         Placements.Rec rec = placements.all().stream().filter(r -> r.id().equals(recId)).findFirst().orElse(null);
+        if (JOBS.stream().anyMatch(j -> j.rec().id().equals(recId))) return; // already being updated
         if (rec == null || !rec.box().getCenter().closerThan(player.blockPosition(), 64)) {
             fail(player, "mbplacer.msg.not_placed");
             return;
@@ -93,13 +98,45 @@ public final class Updater {
                 return;
             }
         }
-        List<ItemStack> drops = new ArrayList<>();
-        plan.remove().forEach((pos, state) -> Dismantler.take(player, level, pos, state, drops));
-        Placer.put(level, plan.place(), player);
-        Dismantler.giveBack(player, tool, drops);
-        placements.remove(level, rec.id());
-        placements.add(level, Placements.record(plan.all(), sel.save(), rec.target(), rec.facing(), rec.owner()));
-        player.displayClientMessage(Component.translatable("mbplacer.msg.updated", plan.remove().size(), plan.place().size()), true);
+        // everything is checked and paid for: swap the blocks bottom-up over a few seconds (see onServerTick)
+        TreeSet<BlockPos> order = new TreeSet<>(Comparator.comparingInt((BlockPos p) -> p.getY()).thenComparingLong(BlockPos::asLong));
+        order.addAll(plan.remove().keySet());
+        order.addAll(plan.place().keySet());
+        int ticks = Placements.dismantleTicks(rec);
+        JOBS.add(new Job(player, tool, level, rec, sel, plan, new ArrayList<>(order), new ArrayList<>(), ticks, new int[2]));
+        Net.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new Net.Progress(rec.id(), ticks));
+    }
+
+    /** A running update. done[0]: positions handled, done[1]: ticks elapsed. */
+    private record Job(ServerPlayer player, ItemStack tool, ServerLevel level, Placements.Rec rec, Selection sel, Plan plan,
+                       List<BlockPos> order, List<ItemStack> drops, int ticks, int[] done) {
+    }
+
+    private static final List<Job> JOBS = new ArrayList<>();
+
+    public static void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END || JOBS.isEmpty()) return;
+        for (Iterator<Job> it = JOBS.iterator(); it.hasNext(); ) {
+            Job j = it.next();
+            int t = ++j.done()[1];
+            int until = (int) Math.ceil(j.order().size() * Math.min(1.0, (double) t / j.ticks()));
+            for (; j.done()[0] < until; j.done()[0]++) {
+                BlockPos pos = j.order().get(j.done()[0]);
+                if (!j.level().isLoaded(pos)) continue;
+                BlockState was = j.plan().remove().get(pos);
+                if (was != null && j.level().getBlockState(pos).getBlock() == was.getBlock()) Dismantler.take(j.player(), j.level(), pos, was, j.drops());
+                Resolver.Placed want = j.plan().place().get(pos);
+                if (want != null) Placer.put(j.level(), Map.of(pos, want), j.player());
+            }
+            if (j.done()[0] < j.order().size()) continue;
+            it.remove();
+            if (j.player().hasDisconnected()) j.drops().forEach(s -> Block.popResource(j.level(), j.rec().target(), s));
+            else Dismantler.giveBack(j.player(), j.tool(), j.drops());
+            Placements placements = Placements.of(j.level());
+            placements.remove(j.level(), j.rec().id());
+            placements.add(j.level(), Placements.record(j.plan().all(), j.sel().save(), j.rec().target(), j.rec().facing(), j.rec().owner()));
+            j.player().displayClientMessage(Component.translatable("mbplacer.msg.updated", j.plan().remove().size(), j.plan().place().size()), true);
+        }
     }
 
     private static void fail(ServerPlayer player, String key, Object... args) {

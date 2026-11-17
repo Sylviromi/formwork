@@ -1,26 +1,42 @@
 package dev.sylviromi.mbplacer.structure;
 
+import net.minecraft.core.BlockPos;
+
+import java.util.List;
 import java.util.Map;
 
-/** Edits of one variant set's counts (block id -> slots) with `slots` in total; never goes below 0 or above the free slots. */
+/** Grid edits of per-slot choices: slots are one set's positions in order, overrides the chosen block per position. */
 public final class VariantCounts {
     private VariantCounts() {
     }
 
-    public static int used(Map<String, Integer> counts) {
-        return counts.values().stream().mapToInt(Integer::intValue).sum();
+    /** Positions among these slots that use this block. */
+    public static int count(List<BlockPos> slots, Map<BlockPos, String> overrides, String block) {
+        return (int) slots.stream().filter(p -> block.equals(overrides.get(p))).count();
     }
 
-    /** Adds d (negative removes), limited by the free slots. */
-    public static void add(Map<String, Integer> counts, String block, int d, int slots) {
-        int now = counts.getOrDefault(block, 0);
-        int next = Math.max(0, now + Math.min(d, slots - used(counts)));
-        if (next == 0) counts.remove(block);
-        else counts.put(block, next);
+    /** Slots with any chosen block. */
+    public static int used(List<BlockPos> slots, Map<BlockPos, String> overrides) {
+        return (int) slots.stream().filter(overrides::containsKey).count();
     }
 
-    /** Gives this block every free slot. */
-    public static void fill(Map<String, Integer> counts, String block, int slots) {
-        add(counts, block, slots, slots);
+    /** Puts the block on the first slot without a choice. */
+    public static void add(List<BlockPos> slots, Map<BlockPos, String> overrides, String block) {
+        slots.stream().filter(p -> !overrides.containsKey(p)).findFirst().ifPresent(p -> overrides.put(p, block));
+    }
+
+    /** Takes the block off the last slot that has it. */
+    public static void remove(List<BlockPos> slots, Map<BlockPos, String> overrides, String block) {
+        for (int i = slots.size() - 1; i >= 0; i--)
+            if (overrides.remove(slots.get(i), block)) return;
+    }
+
+    /** Gives this block every slot without a choice. */
+    public static void fill(List<BlockPos> slots, Map<BlockPos, String> overrides, String block) {
+        slots.forEach(p -> overrides.putIfAbsent(p, block));
+    }
+
+    public static void clear(List<BlockPos> slots, Map<BlockPos, String> overrides, String block) {
+        slots.forEach(p -> overrides.remove(p, block));
     }
 }

@@ -110,17 +110,14 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
 - Headless: `./gradlew runServer` (port 25599, RCON 25575 with password test), then `python3 /tmp/rcon.py "mbplacer place mbplacer:gen/mekanism_turbine 80 -60 0"` and `data get block ...`. The rcon.py script is a 10-line client and may need recreating.
 - Screenshots: `./gradlew runClient -Pmbdev` uses `run/saves/test` (a copy of `run/world` with the pack structures datapack). See `client/DevHooks`.
 
-## In progress (2026-11-17, after v0.3.1) — user requests, in order
-Done in the working tree (committed as "tool without modes"):
-- no dismantle mode: pointing at a placed multiblock, hold use = dismantle, sneak+use = edit, else use = place. Card lost Place/Dismantle; offset text padding fixed; highlight brackets tighter (inflate 0.004, len <= 1).
-Still to do:
-1. Editor: layer label ("3/7") collides with the block count top right: draw the layer label under the slider.
-2. Timed update: `Updater.apply` should run as a server job over Placements.dismantleTicks-like time with a progress bar (packet to client, shown in Hud) instead of instantly. Validate + take materials first, then swap blocks over ticks, record replaced at the end.
-3. Per-position variants: Selection gets `overrides` (relative blueprint pos -> block id), applied after counts in Resolver.applyVariants (only on slot positions, only blocks of the slot's family). The grid writes overrides (+1 = next free slot of that set, -1 = last one, shift fill/clear); load converts old counts.
-4. Families: variant JSON `"family"` (all mm_* sets: "mm_ports") so a slot can take any block of any set in its family. Validation per family with >1 set: per set, count in result must equal count in blueprint (MM layouts use portsAnywhere(true) but need the same number of each port type). Show "Energy Port Input 1 / 2" red + "won't form" warning in the editor (Variants tab, maybe top bar).
-5. 3D picking in EditorScreen: invert the view pose to cast a ray from the mouse, nearest slot block (respect layer slice) gets a highlight box; click opens a small icon popup with the family's blocks (+ reset to default).
-6. DevHooks: run the place/edit/hold-dismantle test with the tier 9 void miner (modifier overrides) instead of MM; take two void miner editor shots ~2 s apart to confirm the animated ultimate textures cycle (frametime 40; vanilla atlas animation, no Embeddium in the pack).
-7. Bump to 0.4.0, install in the pack (replace mods/mbplacer-1.20.1-0.3.1.jar), update the kubejs guide page (no dismantle mode any more).
+## v0.4.0 (2026-11-17, installed in the pack)
+- No tool modes: pointing at a block of a placed multiblock, hold use = dismantle, sneak+use = edit; anywhere else use = place. Only real blocks of a placement count (air or foreign blocks inside its bounds do not).
+- Highlight: `client/Silhouette`, a flat-coloured shell of the outer faces (cyan, red while dismantling) plus corner brackets.
+- Dismantle and in-place updates take 0.5-2 s (`Placements.dismantleTicks`). Updates run as a server job in `Updater` (checked and paid first, blocks swapped bottom-up); the client gets one `Net.Progress` with the duration and animates the bar itself.
+- Per-position variants: `Selection.overrides` (blueprint pos -> block), applied after legacy counts. Grids edit overrides; clicking a block in the editor view selects it and the Variants tab shows "Selected block" with prev/next and one row per set of its family.
+- Families: variant JSON `"family"` (all MM port sets: `mm_ports`). `Resolver.check` compares per-set counts with the blueprint (MM layouts use portsAnywhere); the Variants tab shows them and the tab label counts problems.
+- Dev run: tier 9 void miner place -> timed edit (4 speed -> 4 item) -> hold-to-dismantle, all logged; two editor shots 2.75 s apart confirmed the animated ultimate textures cycle in the preview.
+- Still open: AE2 in game; play-testing by a real player in the pack.
 
 ## Names (v0.3.1): reuse other mods' translations
 - Generators name themselves with Mekanism's keys (`Generator.nameKey()`), settings with Mekanism block/GUI keys (`Param.named(...)`), toggles with vanilla `options.on/off`.

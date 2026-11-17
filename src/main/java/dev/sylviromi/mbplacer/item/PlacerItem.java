@@ -143,19 +143,14 @@ public class PlacerItem extends Item {
 
     // ---- dismantle: hold use on a placed multiblock, like breaking a block ----
 
-    /** The block the player looks at within reach, or null. */
-    @Nullable
-    public static BlockPos lookedAt(Player player) {
-        return player.pick(player.getBlockReach(), 1, false) instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK ? hit.getBlockPos() : null;
-    }
-
-    /** The placement the player looks at; each side uses its own copy of the records. */
+    /** The placement whose block is under the crosshair (not air or a foreign block inside its bounds). Each side uses its own records. */
     @Nullable
     public static Placements.Rec placementLookedAt(Player player) {
-        BlockPos pos = lookedAt(player);
-        if (pos == null) return null;
-        var recs = player.level() instanceof ServerLevel sl ? Placements.of(sl).all() : ClientData.placements;
-        return Placements.at(recs, pos);
+        boolean server = player.level() instanceof ServerLevel;
+        var recs = server ? Placements.of((ServerLevel) player.level()).all() : ClientData.placements;
+        if (recs.isEmpty() || !(player.pick(player.getBlockReach(), 1, false) instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK) return null;
+        Placements.Rec rec = Placements.at(recs, hit.getBlockPos());
+        return rec != null && Placements.positions(rec, Catalog.side(!server)).contains(hit.getBlockPos()) ? rec : null;
     }
 
     @Override
@@ -177,7 +172,7 @@ public class PlacerItem extends Item {
             return;
         }
         if (getUseDuration(stack) - remaining >= Placements.dismantleTicks(rec)) {
-            Dismantler.dismantle(sp, stack, lookedAt(sp));
+            Dismantler.dismantle(sp, stack, rec);
             sp.stopUsingItem();
         }
     }
