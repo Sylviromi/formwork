@@ -155,11 +155,9 @@ final class Ui {
             g.flush();
             PoseStack ps = g.pose();
             ps.pushPose();
-            // fit the structure's screen extent at the current pitch (any yaw)
-            float horiz = (float) Math.sqrt(dx * dx + dz * dz), diag = (float) Math.sqrt(horiz * horiz + dy * dy);
-            double p = Math.toRadians(pitch);
-            float vert = (float) (dy * Math.abs(Math.cos(p)) + horiz * Math.abs(Math.sin(p)));
-            float s = Math.min((w - 8) / horiz, (h - 8) / vert) * zoom;
+            // fit the bounding sphere, so the size stays the same while turning
+            float diag = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+            float s = Math.min(w - 8, h - 8) / diag * zoom;
             ps.translate(x + w / 2f + panX, y + h / 2f + panY, 400);
             // the GUI projection is orthographic, so z scale only sets depth: keeps the model within z 300..500 at any zoom
             ps.scale(s, -s, 200f / diag);

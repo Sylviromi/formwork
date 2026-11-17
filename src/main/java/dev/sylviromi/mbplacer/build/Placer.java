@@ -65,6 +65,12 @@ public final class Placer {
         }
         put(level, blocks, player);
         Placements.of(level).add(level, Placements.record(blocks, sel.save(), target, facing, player.getUUID()));
+        // placed: release the anchor (and its nudges) so the next one follows the crosshair again
+        if (PlacerItem.anchor(tool) != null) {
+            tool.getTag().remove(PlacerItem.ANCHOR);
+            tool.getTag().remove(PlacerItem.ANCHOR_FACING);
+            tool.getTag().remove(PlacerItem.OFFSET);
+        }
         player.displayClientMessage(Component.translatable("mbplacer.msg.placed", blocks.size()), true);
     }
 

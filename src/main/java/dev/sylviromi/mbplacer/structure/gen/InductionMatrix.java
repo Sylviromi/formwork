@@ -19,7 +19,7 @@ public final class InductionMatrix implements Generator {
     public List<Param> params() {
         return List.of(Param.range("width", 3, 18, 5).named("gui.mekanism.width"), Param.range("height", 3, 18, 5).named("gui.mekanism.height"), Param.range("length", 3, 18, 5),
                 new Param("cell_tier", 0, 3, 0, TIERS), new Param("provider_tier", 0, 3, 0, TIERS),
-                Param.range("providers", 0, 4096, 1), Param.toggle("glass", true).named("block.mekanism.structural_glass"), Param.range("ports", 1, 8, 2).named("block.mekanism.induction_port"));
+                Param.range("providers", 0, 4096, 1), Param.toggle("glass", true).named("block.mekanism.structural_glass"));
     }
 
     @Override
@@ -30,7 +30,7 @@ public final class InductionMatrix implements Generator {
             for (int x = 1; x < w - 1; x++)
                 for (int z = 1; z < l - 1; z++)
                     box.set(x, y, z, providers-- > 0 ? M + TIERS.get(v[4]) + "_induction_provider" : M + TIERS.get(v[3]) + "_induction_cell");
-        box.onWalls(box.sideCentres(h / 2), v[7], M + "induction_port");
+        box.onWalls(box.sideCentres(h / 2), 2, M + "induction_port");
         return box.blocks;
     }
 }

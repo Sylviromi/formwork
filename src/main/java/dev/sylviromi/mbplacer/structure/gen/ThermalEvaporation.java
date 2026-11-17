@@ -16,7 +16,7 @@ public final class ThermalEvaporation implements Generator {
 
     @Override
     public List<Param> params() {
-        return List.of(Param.range("height", 3, 18, 18).named("gui.mekanism.height"), Param.range("valves", 0, 3, 2).named("block.mekanism.thermal_evaporation_valve"));
+        return List.of(Param.range("height", 3, 18, 18).named("gui.mekanism.height"));
     }
 
     @Override
@@ -26,7 +26,7 @@ public final class ThermalEvaporation implements Generator {
         for (int x = 1; x <= 2; x++)
             for (int z = 1; z <= 2; z++) box.blocks.remove(new BlockPos(x, h - 1, z));
         box.set(2, 1, 0, M + "thermal_evaporation_controller");
-        box.onWalls(box.sideCentres(1), v[1], M + "thermal_evaporation_valve");
+        box.onWalls(box.sideCentres(1), 2, M + "thermal_evaporation_valve");
         return box.blocks;
     }
 }

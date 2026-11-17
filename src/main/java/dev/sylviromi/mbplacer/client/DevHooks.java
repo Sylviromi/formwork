@@ -160,9 +160,10 @@ public final class DevHooks {
     private static void placeVoidMiner(Minecraft mc) {
         onServer(mc, sp -> {
             Direction f = sp.getDirection();
-            BlockPos target = sp.blockPosition().relative(f, 3);
             Selection sel = new Selection(tier9(Catalog.server), new int[0], Map.of(), modifiers(SPEED, 4));
-            var blocks = Resolver.world(Resolver.specs(Catalog.server, sel), target, f);
+            var specs = Resolver.specs(Catalog.server, sel);
+            BlockPos target = Resolver.centerFor(Resolver.Footprint.of(specs.keySet()), sp.blockPosition().relative(f, 3), f);
+            var blocks = Resolver.world(specs, target, f);
             Placer.put(sp.serverLevel(), blocks, sp);
             Placements.of(sp.serverLevel()).add(sp.serverLevel(), Placements.record(blocks, sel.save(), target, f, sp.getUUID()));
             log(sp, "placed at " + target + " facing " + f);

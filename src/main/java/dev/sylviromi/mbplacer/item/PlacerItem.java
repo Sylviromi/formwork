@@ -3,6 +3,7 @@ package dev.sylviromi.mbplacer.item;
 import dev.sylviromi.mbplacer.build.Dismantler;
 import dev.sylviromi.mbplacer.build.Placements;
 import dev.sylviromi.mbplacer.build.Placer;
+import dev.sylviromi.mbplacer.build.Resolver;
 import dev.sylviromi.mbplacer.net.ClientData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
@@ -63,13 +64,25 @@ public class PlacerItem extends Item {
     public record Placement(BlockPos target, Direction facing) {
     }
 
-    /** Where the structure goes: the anchor if set, else the looked-at block; then rotation and offset. Null when there is nothing to aim at. */
+    /** How far the tool aims when placing (dismantling and editing use the normal reach). */
+    public static final double PLACE_RANGE = 64;
+
+    /** The block the tool aims at for placing, up to PLACE_RANGE away. */
     @Nullable
-    public static Placement placement(ItemStack tool, Level level, @Nullable BlockHitResult hit, Direction playerFacing) {
+    public static BlockHitResult aim(Player player, float partial) {
+        return player.pick(PLACE_RANGE, partial, false) instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK ? hit : null;
+    }
+
+    /**
+     * Where the structure goes (its bottom centre and facing): the anchor if set, else in front of the aimed-at block, extending
+     * away from the player; then the turn (around the centre) and the offset. Null when there is nothing to aim at.
+     */
+    @Nullable
+    public static Placement placement(ItemStack tool, Level level, @Nullable BlockHitResult hit, Direction playerFacing, Resolver.Footprint fp) {
         BlockPos base = anchor(tool);
         Direction facing = playerFacing;
         if (base != null) facing = Direction.from2DDataValue(tool.getTag().getInt(ANCHOR_FACING));
-        else if (hit != null && hit.getType() == HitResult.Type.BLOCK) base = target(level, hit);
+        else if (hit != null) base = Resolver.centerFor(fp, target(level, hit), playerFacing);
         else return null;
         for (int i = 0; i < rotation(tool); i++) facing = facing.getClockWise();
         int[] o = offset(tool);
@@ -130,9 +143,14 @@ public class PlacerItem extends Item {
         t.putInt(ROTATION, Math.floorMod(in.getInt(ROTATION), 4));
     }
 
-    /** Places at the current placement. */
-    private static void act(ServerPlayer player, ItemStack tool, @Nullable BlockHitResult hit) {
-        Placement p = placement(tool, player.level(), hit, player.getDirection());
+    /** Places at the current placement; aims with the long ray like the client's ghost. */
+    private static void act(ServerPlayer player, ItemStack tool) {
+        var specs = Resolver.specs(Catalog.server, selection(tool));
+        if (specs == null || specs.isEmpty()) {
+            player.displayClientMessage(Component.translatable("mbplacer.msg.nothing_selected").withStyle(ChatFormatting.RED), true);
+            return;
+        }
+        Placement p = placement(tool, player.level(), aim(player, 1), player.getDirection(), Resolver.Footprint.of(specs.keySet()));
         if (p == null) return;
         if (!p.target().closerThan(player.blockPosition(), MAX_ANCHOR_DISTANCE)) {
             player.displayClientMessage(Component.translatable("mbplacer.msg.too_far").withStyle(ChatFormatting.RED), true);
@@ -189,9 +207,9 @@ public class PlacerItem extends Item {
             player.startUsingItem(hand);
             return InteractionResultHolder.consume(tool);
         }
-        if (anchor(tool) == null) return InteractionResultHolder.pass(tool);
-        // anchored: works without looking at a block
-        if (player instanceof ServerPlayer sp) act(sp, tool, null);
+        // anchored, or aiming at a block further away than reach
+        if (anchor(tool) == null && aim(player, 1) == null) return InteractionResultHolder.pass(tool);
+        if (player instanceof ServerPlayer sp) act(sp, tool);
         return InteractionResultHolder.sidedSuccess(tool, level.isClientSide);
     }
 
@@ -205,7 +223,7 @@ public class PlacerItem extends Item {
         }
         if (placementLookedAt(player) != null) return InteractionResult.PASS; // use() handles it: hold to dismantle
         if (player instanceof ServerPlayer sp)
-            act(sp, ctx.getItemInHand(), new BlockHitResult(ctx.getClickLocation(), ctx.getClickedFace(), ctx.getClickedPos(), ctx.isInside()));
+            act(sp, ctx.getItemInHand());
         return InteractionResult.sidedSuccess(ctx.getLevel().isClientSide);
     }
 

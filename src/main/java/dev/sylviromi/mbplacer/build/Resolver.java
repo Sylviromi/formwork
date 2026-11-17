@@ -138,30 +138,60 @@ public final class Resolver {
         };
     }
 
-    /** World positions: rotated by the player's facing, bottom at target.y, starting at target and extending away from the player, centred sideways. */
     /** A block ready to put in the world. */
     public record Placed(BlockState state, @Nullable net.minecraft.nbt.CompoundTag nbt) {
     }
 
+    /** The blueprint's bounds. */
+    public record Footprint(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        public static Footprint of(Collection<BlockPos> blocks) {
+            int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+            for (BlockPos p : blocks) {
+                minX = Math.min(minX, p.getX()); maxX = Math.max(maxX, p.getX());
+                minY = Math.min(minY, p.getY()); maxY = Math.max(maxY, p.getY());
+                minZ = Math.min(minZ, p.getZ()); maxZ = Math.max(maxZ, p.getZ());
+            }
+            return new Footprint(minX, minY, minZ, maxX, maxY, maxZ);
+        }
+
+        /** x/z extents after rotating and centering (as world() lays it out): {minX, maxX, minZ, maxZ} relative to the target. */
+        int[] centered(Rotation rot) {
+            BlockPos a = new BlockPos(minX, 0, minZ).rotate(rot), b = new BlockPos(maxX, 0, maxZ).rotate(rot);
+            int x0 = Math.min(a.getX(), b.getX()), x1 = Math.max(a.getX(), b.getX()), z0 = Math.min(a.getZ(), b.getZ()), z1 = Math.max(a.getZ(), b.getZ());
+            int ox = -Math.floorDiv(x0 + x1, 2), oz = -Math.floorDiv(z0 + z1, 2);
+            return new int[]{x0 + ox, x1 + ox, z0 + oz, z1 + oz};
+        }
+    }
+
+    /** The target (bottom centre) that puts a structure's near face on `front`, extending away in `facing`. */
+    public static BlockPos centerFor(Footprint fp, BlockPos front, Direction facing) {
+        int[] e = fp.centered(rotationFor(facing));
+        return switch (facing) {
+            case NORTH -> front.offset(0, 0, -e[3]);
+            case SOUTH -> front.offset(0, 0, -e[2]);
+            case EAST -> front.offset(-e[0], 0, 0);
+            default -> front.offset(-e[1], 0, 0);
+        };
+    }
+
+    /** World blocks: rotated by facing and centred on target (the bottom centre), so turning a structure keeps it in place. */
     public static Map<BlockPos, Placed> world(Map<BlockPos, BlockSpec> specs, BlockPos target, Direction facing) {
         Rotation rot = rotationFor(facing);
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
-        for (BlockPos p : specs.keySet()) {
-            BlockPos r = p.rotate(rot);
-            minX = Math.min(minX, r.getX()); maxX = Math.max(maxX, r.getX());
-            minY = Math.min(minY, r.getY());
-            minZ = Math.min(minZ, r.getZ()); maxZ = Math.max(maxZ, r.getZ());
-        }
-        int ox = switch (facing) { case EAST -> -minX; case WEST -> -maxX; default -> -(minX + maxX) / 2; };
-        int oz = switch (facing) { case SOUTH -> -minZ; case NORTH -> -maxZ; default -> -(minZ + maxZ) / 2; };
-        BlockPos offset = target.offset(ox, -minY, oz);
+        var at = layout(Footprint.of(specs.keySet()), target, facing);
         Map<BlockPos, Placed> out = new TreeMap<>();
         specs.forEach((p, spec) -> {
             BlockState state = state(spec);
-            if (state != null) out.put(p.rotate(rot).offset(offset), new Placed(state.rotate(rot), spec.nbt()));
+            if (state != null) out.put(at.apply(p), new Placed(state.rotate(rot), spec.nbt()));
         });
         return out;
+    }
+
+    /** Blueprint position -> world position for a structure with this footprint centred on target and facing this way. */
+    public static java.util.function.Function<BlockPos, BlockPos> layout(Footprint fp, BlockPos target, Direction facing) {
+        Rotation rot = rotationFor(facing);
+        BlockPos a = new BlockPos(fp.minX(), 0, fp.minZ()).rotate(rot), b = new BlockPos(fp.maxX(), 0, fp.maxZ()).rotate(rot);
+        BlockPos offset = target.offset(-Math.floorDiv(a.getX() + b.getX(), 2), -fp.minY(), -Math.floorDiv(a.getZ() + b.getZ(), 2));
+        return p -> p.rotate(rot).offset(offset);
     }
 
     @Nullable

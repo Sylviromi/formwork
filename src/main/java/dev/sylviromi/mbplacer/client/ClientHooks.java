@@ -5,6 +5,7 @@ import dev.sylviromi.mbplacer.MbPlacer;
 import dev.sylviromi.mbplacer.item.PlacerItem;
 import dev.sylviromi.mbplacer.net.Net;
 import dev.sylviromi.mbplacer.build.Placements;
+import dev.sylviromi.mbplacer.build.Resolver;
 import dev.sylviromi.mbplacer.structure.Catalog;
 import dev.sylviromi.mbplacer.structure.Selection;
 import net.minecraft.client.KeyMapping;
@@ -24,7 +25,6 @@ import org.lwjgl.glfw.GLFW;
 /** Client-only entry points: screens, key bindings and placement edits. */
 @Mod.EventBusSubscriber(modid = MbPlacer.ID, value = Dist.CLIENT)
 public final class ClientHooks {
-    static final KeyMapping ANCHOR = new KeyMapping("key.mbplacer.anchor", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, "key.categories.mbplacer");
     static final KeyMapping PLACEMENT = new KeyMapping("key.mbplacer.placement", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_H, "key.categories.mbplacer");
 
     private ClientHooks() {
@@ -51,7 +51,6 @@ public final class ClientHooks {
     static final class ModEvents {
         @SubscribeEvent
         static void keys(RegisterKeyMappingsEvent e) {
-            e.register(ANCHOR);
             e.register(PLACEMENT);
         }
     }
@@ -61,15 +60,25 @@ public final class ClientHooks {
         Minecraft mc = Minecraft.getInstance();
         if (e.phase != TickEvent.Phase.END || mc.player == null || mc.screen != null) return;
         ItemStack tool = WorldGhost.heldTool();
-        while (ANCHOR.consumeClick()) if (!tool.isEmpty()) toggleAnchor(tool);
         while (PLACEMENT.consumeClick()) if (!tool.isEmpty()) mc.setScreen(new PlacementScreen());
     }
 
-    /** Where the held tool would place right now. */
+    private static String footprintKey = "";
+    private static Resolver.Footprint footprint;
+
+    /** Where the held tool would place right now (aiming with the long placement ray), or null. */
     @Nullable
     static PlacerItem.Placement currentPlacement(ItemStack tool) {
         Minecraft mc = Minecraft.getInstance();
-        return PlacerItem.placement(tool, mc.level, mc.hitResult instanceof BlockHitResult b ? b : null, mc.player.getDirection());
+        Selection sel = PlacerItem.selection(tool);
+        String key = sel.save() + "|" + System.identityHashCode(Catalog.client) + Catalog.client.blueprints.size();
+        if (!key.equals(footprintKey)) {
+            footprintKey = key;
+            var specs = Resolver.specs(Catalog.client, sel);
+            footprint = specs == null || specs.isEmpty() ? null : Resolver.Footprint.of(specs.keySet());
+        }
+        if (footprint == null) return null;
+        return PlacerItem.placement(tool, mc.level, PlacerItem.aim(mc.player, mc.getFrameTime()), mc.player.getDirection(), footprint);
     }
 
     /** Anchors at the current placement (folding offset and rotation into it), or releases the anchor. */

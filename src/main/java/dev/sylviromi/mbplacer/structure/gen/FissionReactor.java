@@ -19,8 +19,7 @@ public final class FissionReactor implements Generator {
     public List<Param> params() {
         return List.of(Param.range("width", 3, 18, 7).named("gui.mekanism.width"), Param.range("height", 4, 18, 7).named("gui.mekanism.height"), Param.range("length", 3, 18, 7),
                 Param.toggle("glass", true).named("block.mekanismgenerators.reactor_glass"),
-                new Param("fuel_layout", 0, 2, 0, List.of("checker", "spaced", "full")),
-                Param.range("ports", 0, 8, 4).named("block.mekanismgenerators.fission_reactor_port"), Param.range("logic_adapters", 0, 4, 0).named("block.mekanismgenerators.fission_reactor_logic_adapter"));
+                new Param("fuel_layout", 0, 2, 0, List.of("checker", "spaced", "full")));
     }
 
     @Override
@@ -40,8 +39,7 @@ public final class FissionReactor implements Generator {
             }
         List<BlockPos> walls = new ArrayList<>(box.sideCentres(1));
         walls.addAll(box.sideCentres(h - 2));
-        box.onWalls(walls, v[5], G + "fission_reactor_port");
-        box.onWalls(box.sideCentres(h / 2), v[6], G + "fission_reactor_logic_adapter");
+        box.onWalls(walls, 4, G + "fission_reactor_port");
         return box.blocks;
     }
 }

@@ -170,10 +170,6 @@ public class PlacementScreen extends Screen {
                     onClose();
                     return true;
                 }
-                if (ClientHooks.ANCHOR.matches(key, scan)) {
-                    ClientHooks.toggleAnchor(tool());
-                    return true;
-                }
                 return super.keyPressed(key, scan, mods);
             }
         }

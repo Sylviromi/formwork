@@ -24,7 +24,7 @@ public final class IndustrialTurbine implements Generator {
     public List<Param> params() {
         return List.of(new Param("size", 0, 6, 0, List.of("5", "7", "9", "11", "13", "15", "17")),
                 Param.range("height", 5, 18, 9).named("gui.mekanism.height"), Param.range("rotors", 1, 14, 3).named("block.mekanismgenerators.turbine_rotor"), Param.range("coils", 1, 24, 2).named("block.mekanismgenerators.electromagnetic_coil"),
-                Param.toggle("glass", true).named("block.mekanism.structural_glass"), Param.toggle("condensers", false).named("block.mekanismgenerators.saturating_condenser"), Param.range("valves", 1, 8, 2).named("block.mekanismgenerators.turbine_valve"));
+                Param.toggle("glass", true).named("block.mekanism.structural_glass"), Param.toggle("condensers", false).named("block.mekanismgenerators.saturating_condenser"));
     }
 
     @Override
@@ -61,7 +61,7 @@ public final class IndustrialTurbine implements Generator {
             for (int z = 1; z < s - 1; z++) box.set(x, h - 1, z, G + "turbine_vent");
         List<BlockPos> walls = new ArrayList<>(box.sideCentres(1));
         if (rotors > 1) walls.addAll(box.sideCentres(2));
-        box.onWalls(walls, v[6], G + "turbine_valve");
+        box.onWalls(walls, 2, G + "turbine_valve");
         return box.blocks;
     }
 }

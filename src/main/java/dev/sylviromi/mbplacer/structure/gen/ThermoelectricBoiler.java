@@ -19,7 +19,7 @@ public final class ThermoelectricBoiler implements Generator {
     public List<Param> params() {
         return List.of(Param.range("width", 3, 18, 7).named("gui.mekanism.width"), Param.range("height", 5, 18, 9).named("gui.mekanism.height"), Param.range("length", 3, 18, 7),
                 Param.range("disperser_height", 2, 16, 4), Param.range("heater_layers", 0, 15, 1),
-                Param.toggle("glass", true).named("block.mekanism.structural_glass"), Param.range("valves", 1, 8, 4).named("block.mekanism.boiler_valve"));
+                Param.toggle("glass", true).named("block.mekanism.structural_glass"));
     }
 
     @Override
@@ -31,7 +31,7 @@ public final class ThermoelectricBoiler implements Generator {
         box.layer(disperserY, M + "pressure_disperser");
         List<BlockPos> walls = new ArrayList<>(box.sideCentres(1));
         walls.addAll(box.sideCentres(h - 2));
-        box.onWalls(walls, v[6], M + "boiler_valve");
+        box.onWalls(walls, 4, M + "boiler_valve");
         return box.blocks;
     }
 }

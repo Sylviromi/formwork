@@ -80,7 +80,7 @@ public class EditorScreen extends Screen {
                 if (b != null) overrides.putAll(Resolver.countsToOverrides(Resolver.slots(Catalog.client, sel.entry(), b), sel.counts()));
             }
         } else {
-            tier = entry.members().size() - 1;
+            tier = 0; // a new pick starts at the first tier
             params = generator().map(g -> g.params().stream().mapToInt(Param::def).toArray()).orElse(new int[0]);
         }
     }
@@ -238,61 +238,49 @@ public class EditorScreen extends Screen {
         return block == null ? ItemStack.EMPTY : new ItemStack(block);
     }
 
-    /** Icon grid of one variant set: count badges; click +1, right-click -1, shift-click fill, shift-right-click clear. */
-    private Line grid(VariantSet set) {
-        List<BlockPos> setSlots = slotsOf(set.id());
-        List<String> blocks = set.blocks();
+    /** On/off switch row; the whole row toggles. */
+    private Line toggle(Component label, java.util.function.BooleanSupplier on, Runnable flip) {
         return new Line() {
-            int cols(int w) {
-                int fit = Math.max(1, w / CELL_SIZE);
-                return set.columns() > 0 ? Math.min(set.columns(), fit) : fit;
-            }
-
-            @Override public int height() {
-                return GRID_TOP + ((blocks.size() + cols(sideW - 12) - 1) / cols(sideW - 12)) * CELL_SIZE + 4;
-            }
+            @Override public int height() { return ROW + 2; }
 
             @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
-                int used = VariantCounts.used(setSlots, overrides), slots = setSlots.size();
-                g.fill(x, y + 2, x + w, y + 6, CELL);
-                g.fill(x, y + 2, x + w * used / Math.max(1, slots), y + 6, GREEN);
-                g.drawString(font, Component.translatable("mbplacer.gui.unchanged", slots - used), x, y + 9, DIM, false);
-                int cols = cols(w), gy = y + GRID_TOP;
-                for (int i = 0; i < blocks.size(); i++) {
-                    int cx = x + (i % cols) * CELL_SIZE, cy = gy + (i / cols) * CELL_SIZE;
-                    int n = VariantCounts.count(setSlots, overrides, blocks.get(i));
-                    boolean hover = in(mx, my, cx, cy, CELL_SIZE - 2, CELL_SIZE - 2);
-                    g.fill(cx, cy, cx + CELL_SIZE - 2, cy + CELL_SIZE - 2, hover ? BTN_HOVER : CELL);
-                    g.renderOutline(cx, cy, CELL_SIZE - 2, CELL_SIZE - 2, n > 0 || hover ? ACCENT : BORDER);
-                    ItemStack icon = iconOf(blocks.get(i));
-                    g.renderItem(icon, cx + 1, cy + 1);
-                    if (n > 0) badge(g, cx, cy, n);
-                    if (hover) setTooltipForNextRenderPass(Component.literal((icon.isEmpty() ? blocks.get(i) : icon.getHoverName().getString())
-                            + "\n" + Component.translatable("mbplacer.gui.grid_tip", n).getString()));
-                }
+                boolean hover = in(mx, my, x - 3, y, w + 6, height()), v = on.getAsBoolean();
+                if (hover) g.fill(x - 3, y, x + w + 3, y + height(), HOVER);
+                g.drawString(font, font.plainSubstrByWidth(label.getString(), w - 34), x, y + 4, TEXT, false);
+                int sx = x + w - 26, sy = y + 3;
+                g.fill(sx, sy, sx + 26, sy + 10, v ? 0xFF2B8A5A : CELL);
+                g.renderOutline(sx, sy, 26, 10, v ? GREEN : hover ? ACCENT : BORDER);
+                int knob = v ? sx + 15 : sx + 1;
+                g.fill(knob, sy + 1, knob + 10, sy + 9, v ? 0xFFFFFFFF : DIM);
             }
 
             @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
-                int cols = cols(w), i = (int) ((mx - x) / CELL_SIZE) + (int) ((my - y - GRID_TOP) / CELL_SIZE) * cols;
-                if (my < y + GRID_TOP || mx >= x + cols * CELL_SIZE || i < 0 || i >= blocks.size()) return false;
-                String b = blocks.get(i);
-                if (button == 1 && hasShiftDown()) VariantCounts.clear(setSlots, overrides, b);
-                else if (button == 1) VariantCounts.remove(setSlots, overrides, b);
-                else if (hasShiftDown()) VariantCounts.fill(setSlots, overrides, b);
-                else VariantCounts.add(setSlots, overrides, b);
-                rebuild(true);
+                flip.run();
                 return true;
             }
         };
     }
 
-    private void badge(GuiGraphics g, int cx, int cy, int n) {
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 200);
-        String s = String.valueOf(n);
-        g.fill(cx + CELL_SIZE - 3 - font.width(s) - 1, cy + CELL_SIZE - 11, cx + CELL_SIZE - 2, cy + CELL_SIZE - 2, 0xE0000000);
-        g.drawString(font, s, cx + CELL_SIZE - 2 - font.width(s), cy + CELL_SIZE - 10, YELLOW, false);
-        g.pose().popPose();
+    /** One set: its name and how many of its blocks are changed; click to start editing its first block. */
+    private Line setRow(VariantSet set, int n) {
+        return new Line() {
+            @Override public int height() { return 20; }
+
+            @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
+                boolean hover = in(mx, my, x - 3, y, w + 6, height());
+                g.fill(x - 3, y + 1, x + w + 3, y + height() - 1, hover ? BTN_HOVER : CELL);
+                List<BlockPos> setSlots = slotsOf(set.id());
+                g.renderItem(iconOf(setSlots.isEmpty() ? set.blocks().get(0) : blockAt(setSlots.get(0))), x, y + 2);
+                String count = Component.translatable("mbplacer.gui.changed", VariantCounts.used(setSlots, overrides), n).getString();
+                g.drawString(font, font.plainSubstrByWidth(setName(set).getString(), w - 22 - font.width(count)), x + 19, y + 6, TEXT, false);
+                g.drawString(font, count, x + w - font.width(count), y + 6, DIM, false);
+            }
+
+            @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
+                slotsOf(set.id()).stream().findFirst().ifPresent(EditorScreen.this::select);
+                return true;
+            }
+        };
     }
 
     private Line actionLine(Component label, Runnable action) {
@@ -343,23 +331,18 @@ public class EditorScreen extends Screen {
                 for (int i = 0; i < ps.size(); i++) {
                     int idx = i;
                     Param p = ps.get(i);
-                    out.add(stepper(p.label(), () -> p.valueLabel(params[idx]).getString(),
+                    if (p.labels().equals(Param.toggle("", false).labels())) out.add(toggle(p.label(), () -> params[idx] == 1, () -> { params[idx] = 1 - params[idx]; rebuild(true); }));
+                    else out.add(stepper(p.label(), () -> p.valueLabel(params[idx]).getString(),
                             d -> { params[idx] = p.clamp(params[idx] + d); rebuild(true); }));
                 }
             });
             case VARIANTS -> {
-                if (selectedSlot != null && slotMap.containsKey(selectedSlot)) selectedLines(out);
-                // MM-style families: the structure needs as many of each kind as the blueprint has
-                if (!checks.isEmpty()) {
-                    out.add(header(Component.translatable(problems() == 0 ? "mbplacer.gui.check_ok" : "mbplacer.gui.check_bad"), ""));
-                    for (Resolver.Check c : checks)
-                        out.add(text(Component.literal(setName(c.set()).getString() + "  " + c.actual() + " / " + c.required()), c.ok() ? GREEN : RED));
+                if (selectedSlot != null && slotMap.containsKey(selectedSlot)) {
+                    selectedLines(out);
+                    break;
                 }
                 out.add(text(Component.translatable("mbplacer.gui.pick_hint"), DIM));
-                slots().forEach((set, n) -> {
-                    out.add(header(setName(set), VariantCounts.used(slotsOf(set.id()), overrides) + " / " + n));
-                    out.add(grid(set));
-                });
+                slots().forEach((set, n) -> out.add(setRow(set, n)));
             }
             case MATERIALS -> {
                 out.add(text(Component.translatable("mbplacer.gui.me." + ClientData.me.name()), ClientData.me == Materials.MeStatus.CONNECTED ? GREEN : DIM));
@@ -398,11 +381,19 @@ public class EditorScreen extends Screen {
     // ---------- geometry ----------
 
     private int bodyTop() { return y0 + BAR + 4; }
+    /** Tier selector in the top bar: {left arrow x, text x, right arrow x}, laid out from the right edge. */
+    private int[] tierBox() {
+        int right = x0 + w - PAD - 15, textX = right - 6 - font.width(tierText());
+        return new int[]{textX - 6 - 15, textX, right};
+    }
+
+    private String tierText() {
+        return Component.translatable("mbplacer.gui.tier", tier + 1, entry.members().size()).getString();
+    }
+
     /** Apply sits left of the tier selector (or at the right edge without tiers). */
     private int applyX() {
-        if (entry.members().size() <= 1) return x0 + w - PAD - 50;
-        String t = Component.translatable("mbplacer.gui.tier", tier + 1, entry.members().size()).getString();
-        return x0 + w - PAD - 16 - font.width(t) - 20 - 58;
+        return entry.members().size() <= 1 ? x0 + w - PAD - 50 : tierBox()[0] - 8 - 50;
     }
     private int bodyBottom() { return y0 + h - PAD; }
     private int sideX() { return x0 + w - sideW - PAD; }
@@ -441,11 +432,10 @@ public class EditorScreen extends Screen {
         if (editing != null && button(g, font, applyX(), y, 50, 15, Component.translatable("mbplacer.gui.apply"), true, mx, my))
             setTooltipForNextRenderPass(Component.translatable("mbplacer.gui.apply_tip"));
         if (entry.members().size() > 1) {
-            String t = Component.translatable("mbplacer.gui.tier", tier + 1, entry.members().size()).getString();
-            int tx = x0 + w - PAD - 16 - font.width(t) - 20;
-            button(g, tx, y, 15, 15, Icon.LEFT, false, mx, my);
-            g.drawString(font, t, tx + 26, y + 4, ACCENT, false);
-            button(g, x0 + w - PAD - 16, y, 15, 15, Icon.RIGHT, false, mx, my);
+            int[] t = tierBox();
+            button(g, t[0], y, 15, 15, Icon.LEFT, false, mx, my);
+            g.drawString(font, tierText(), t[1], y + 4, ACCENT, false);
+            button(g, t[2], y, 15, 15, Icon.RIGHT, false, mx, my);
         }
     }
 
@@ -480,6 +470,17 @@ public class EditorScreen extends Screen {
         String count = Component.translatable("mbplacer.gui.blocks", preview.size()).getString();
         g.drawString(font, count, vx + vw - 20 - font.width(count), vy + 8, DIM, false);
         g.drawString(font, Component.translatable("mbplacer.gui.view_hint"), vx + 4, vy + vh - 12, DIM, false);
+        // MM-style families: whether the machine will form, always in sight
+        if (!checks.isEmpty()) {
+            String status = problems() == 0 ? Component.translatable("mbplacer.gui.check_ok").getString()
+                    : Component.translatable("mbplacer.gui.check_bad").getString() + "  " + String.join(", ", checks.stream().filter(c -> !c.ok())
+                    .map(c -> setName(c.set()).getString() + " " + c.actual() + "/" + c.required()).toList());
+            status = font.plainSubstrByWidth(status, vw - 40);
+            int sw = font.width(status) + 10, sy = vy + vh - 28;
+            g.fill(vx + 4, sy, vx + 4 + sw, sy + 13, problems() == 0 ? 0xD0153A26 : 0xD04A1818);
+            g.renderOutline(vx + 4, sy, sw, 13, problems() == 0 ? GREEN : RED);
+            g.drawString(font, status, vx + 9, sy + 3, problems() == 0 ? GREEN : RED, false);
+        }
         // layer slider: top = all layers
         int sx = sliderX(), st = sliderTop(), sb = sliderBottom(), layers = (int) bounds.dy();
         g.fill(sx + 3, st, sx + 7, sb, CELL);
@@ -503,46 +504,70 @@ public class EditorScreen extends Screen {
         lines = buildLines();
     }
 
-    /** The previous or next swappable block, in position order, wrapping around. */
-    private void step(int d) {
-        List<BlockPos> all = List.copyOf(slotMap.keySet());
-        int i = all.indexOf(selectedSlot);
-        if (!all.isEmpty()) select(all.get(Math.floorMod(i + d, all.size())));
-    }
-
     private void choose(String block) {
         if (block.equals(base.get(selectedSlot).id())) overrides.remove(selectedSlot);
         else overrides.put(selectedSlot, block);
         rebuild(true);
     }
 
-    /** "Selected block": its name with prev/next/close, then one labelled row of choices per set of its family. */
+    /** Choice rows for a slot: one per set of its family; a set with columns (void miner modifiers) splits into one row per column. */
+    private List<Map.Entry<Component, List<String>>> choiceRows(BlockPos pos) {
+        List<Map.Entry<Component, List<String>>> rows = new ArrayList<>();
+        for (VariantSet set : Catalog.client.family(slotMap.get(pos), currentId())) {
+            int cols = set.columns(), full = cols > 1 ? set.blocks().size() / cols * cols : 0;
+            if (full == 0) {
+                rows.add(Map.entry(setName(set), set.blocks()));
+                continue;
+            }
+            for (int c = 0; c < cols; c++) {
+                List<String> row = new ArrayList<>();
+                for (int i = c; i < full; i += cols) row.add(set.blocks().get(i));
+                rows.add(Map.entry(sharedName(row), row));
+            }
+            if (full < set.blocks().size()) rows.add(Map.entry(Component.translatable("mbplacer.gui.other"), set.blocks().subList(full, set.blocks().size())));
+        }
+        return rows;
+    }
+
+    /** "Rubetine Energy Modifier", "Aurantium Energy Modifier" -> "Energy Modifier". */
+    private static Component sharedName(List<String> blocks) {
+        List<List<String>> names = blocks.stream().map(b -> List.of(iconOf(b).getHoverName().getString().split(" "))).toList();
+        List<String> shared = reversed(Catalog.sharedWords(names.stream().map(EditorScreen::reversed).toList()));
+        return Component.literal(String.join(" ", shared));
+    }
+
+    /** The selected block: its name and "all like this", then the choices; a choice applies at once. */
     private void selectedLines(List<Line> out) {
         BlockPos pos = selectedSlot;
         String now = blockAt(pos), original = base.get(pos).id();
+        List<BlockPos> same = slotsOf(slotMap.get(pos).id());
+        Component all = Component.translatable("mbplacer.gui.all_like", same.size());
         out.add(new Line() {
             @Override public int height() { return 22; }
 
             @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
                 g.fill(x - 3, y, x + w + 3, y + height(), 0x334FD1FF);
                 g.renderItem(iconOf(now), x, y + 3);
-                g.drawString(font, font.plainSubstrByWidth(iconOf(now).getHoverName().getString(), w - 18 - 51), x + 19, y + 7, TEXT, false);
-                if (Ui.button(g, x + w - 49, y + 4, 15, 15, Icon.LEFT, false, mx, my)) setTooltipForNextRenderPass(Component.translatable("mbplacer.gui.slot_prev"));
-                if (Ui.button(g, x + w - 32, y + 4, 15, 15, Icon.RIGHT, false, mx, my)) setTooltipForNextRenderPass(Component.translatable("mbplacer.gui.slot_next"));
-                if (Ui.button(g, font, x + w - 15, y + 4, 15, 15, Component.literal("x"), false, mx, my)) setTooltipForNextRenderPass(Component.translatable("gui.done"));
+                int bw = font.width(all) + 8;
+                g.drawString(font, font.plainSubstrByWidth(iconOf(now).getHoverName().getString(), w - 22 - bw), x + 19, y + 7, TEXT, false);
+                if (Ui.button(g, font, x + w - bw, y + 4, bw, 15, all, false, mx, my))
+                    setTooltipForNextRenderPass(Component.translatable("mbplacer.gui.all_like_tip"));
             }
 
             @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
-                if (in(mx, my, x + w - 49, y + 4, 15, 15)) step(-1);
-                else if (in(mx, my, x + w - 32, y + 4, 15, 15)) step(1);
-                else if (in(mx, my, x + w - 15, y + 4, 15, 15)) { selectedSlot = null; lines = buildLines(); }
-                else return false;
+                int bw = font.width(all) + 8;
+                if (!in(mx, my, x + w - bw, y + 4, bw, 15)) return false;
+                for (BlockPos p : same) {
+                    if (now.equals(base.get(p).id())) overrides.remove(p);
+                    else overrides.put(p, now);
+                }
+                rebuild(true);
                 return true;
             }
         });
-        for (VariantSet set : Catalog.client.family(slotMap.get(pos), currentId())) {
-            out.add(text(setName(set), DIM));
-            List<String> blocks = set.blocks();
+        for (var row : choiceRows(pos)) {
+            out.add(text(row.getKey(), DIM));
+            List<String> blocks = row.getValue();
             out.add(new Line() {
                 int cols(int w) { return Math.max(1, w / CELL_SIZE); }
 
@@ -610,9 +635,8 @@ public class EditorScreen extends Screen {
             return true;
         }
         if (entry.members().size() > 1) {
-            String t = Component.translatable("mbplacer.gui.tier", tier + 1, entry.members().size()).getString();
-            int tx = x0 + w - PAD - 16 - font.width(t) - 20;
-            int next = in(mx, my, tx, y, 16, 16) ? tier - 1 : in(mx, my, x0 + w - PAD - 16, y, 16, 16) ? tier + 1 : tier;
+            int[] t = tierBox();
+            int next = in(mx, my, t[0], y, 15, 15) ? tier - 1 : in(mx, my, t[2], y, 15, 15) ? tier + 1 : tier;
             if (next != tier) {
                 tier = Math.max(0, Math.min(entry.members().size() - 1, next));
                 overrides.clear();
