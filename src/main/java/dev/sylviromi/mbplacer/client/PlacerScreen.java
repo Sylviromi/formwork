@@ -121,6 +121,15 @@ public class PlacerScreen extends Screen {
         return PlacerItem.displayName(e.members().size() > 1 ? e.key() : e.members().get(0));
     }
 
+    /** Used by DevHooks: pick an entry by key and show its last tier. */
+    void selectForDev(String key) {
+        catalog().entries().stream().filter(e -> e.key().equals(key)).findFirst().ifPresent(e -> {
+            choose(e);
+            tier = e.members().size() - 1;
+            rebuild(true);
+        });
+    }
+
     private void choose(Catalog.Entry e) {
         entry = e;
         tier = 0;
@@ -193,19 +202,19 @@ public class PlacerScreen extends Screen {
                 }
                 String v = value.get();
                 int vw = Math.max(18, font.width(v));
-                g.drawString(font, font.plainSubstrByWidth(label.getString(), w - (tx - x) - vw - 24), tx, ty, TEXT, false);
+                g.drawString(font, font.plainSubstrByWidth(label.getString(), w - (tx - x) - vw - 30), tx, ty, TEXT, false);
                 int rx = x + w;
-                boolean hoverL = my >= y && my < y + height() && mx >= rx - vw - 20 && mx < rx - vw - 10;
+                boolean hoverL = my >= y && my < y + height() && mx >= rx - vw - 26 && mx < rx - vw - 12;
                 boolean hoverR = my >= y && my < y + height() && mx >= rx - 10 && mx < rx;
-                g.drawString(font, "<", rx - vw - 18, ty, hoverL ? ACCENT : DIM, false);
-                g.drawCenteredString(font, v, rx - 10 - vw / 2, ty, TEXT);
+                g.drawString(font, "<", rx - vw - 22, ty, hoverL ? ACCENT : DIM, false);
+                g.drawCenteredString(font, v, rx - 13 - vw / 2, ty, TEXT);
                 g.drawString(font, ">", rx - 8, ty, hoverR ? ACCENT : DIM, false);
             }
 
             @Override public boolean click(int x, int y, int w, double mx, double my, boolean shift) {
                 int vw = Math.max(18, font.width(value.get()));
                 int rx = x + w;
-                if (mx >= rx - vw - 20 && mx < rx - vw - 6) step.accept(shift ? -10 : -1);
+                if (mx >= rx - vw - 26 && mx < rx - vw - 10) step.accept(shift ? -10 : -1);
                 else if (mx >= rx - 12 && mx < rx) step.accept(shift ? 10 : 1);
                 else return false;
                 return true;
@@ -244,7 +253,7 @@ public class PlacerScreen extends Screen {
         // variant sets present in the unmodified structure
         Map<BlockPos, BlockSpec> base = Resolver.specs(catalog(), new Selection(currentId(), params, Map.of()));
         if (base != null) {
-            Map<VariantSet, Integer> slots = Resolver.slotCounts(catalog(), base);
+            Map<VariantSet, Integer> slots = Resolver.slotCounts(catalog(), currentId(), base);
             if (!slots.isEmpty()) out.add(header(Component.translatable("mbplacer.gui.variants")));
             slots.forEach((set, n) -> {
                 Map<String, Integer> c = counts.computeIfAbsent(set.id(), k -> new LinkedHashMap<>());

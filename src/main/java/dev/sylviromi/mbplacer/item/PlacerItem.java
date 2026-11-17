@@ -87,7 +87,8 @@ public class PlacerItem extends Item {
     /** Name of a blueprint or generator: our own lang key first, then the legacy mbtool key, then the raw name. */
     public static Component displayName(String id) {
         String name = Catalog.shortName(id);
-        for (String key : List.of("mbplacer.structure." + name, "mbtool.structure." + name))
+        List<String> keys = id.startsWith("mbplacer:gen/") ? List.of("mbplacer.gen." + name) : List.of("mbplacer.structure." + name, "mbtool.structure." + name);
+        for (String key : keys)
             if (net.minecraft.locale.Language.getInstance().has(key)) return Component.translatable(key);
         return Component.literal(prettify(name));
     }

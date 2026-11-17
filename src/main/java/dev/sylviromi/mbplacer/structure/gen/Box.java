@@ -67,6 +67,6 @@ final class Box {
 
     private boolean isAny(BlockPos p, String part) {
         BlockSpec s = blocks.get(p);
-        return s != null && (s.id().contains(part) || s.id().contains("valve") || s.id().contains("adapter"));
+        return s != null && (s.id().contains(part) || s.id().contains("valve") || s.id().contains("adapter") || s.id().contains("controller"));
     }
 }

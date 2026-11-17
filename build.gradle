@@ -13,10 +13,19 @@ minecraft {
     runs {
         configureEach {
             workingDirectory project.file('run')
-            property 'forge.logging.console.level', 'info'
+            property 'forge.logging.console.level', project.findProperty('mblog') ?: 'info'
+            // lets production mods with mixins (AE2) run in dev
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
             mods { mbplacer { source sourceSets.main } }
         }
-        client {}
+        client {
+            // -Pmbdev: screenshot run in run/saves/test (see client/DevHooks)
+            if (project.hasProperty('mbdev')) {
+                property 'mbplacer.dev', 'true'
+                args '--quickPlaySingleplayer', 'test'
+            }
+        }
         server { args '--nogui' }
     }
 }
@@ -28,7 +37,7 @@ repositories {
 }
 
 // Pack jars that are not on any maven, renamed to <id>-1.jar. Run `./gradlew copyPackMods` once.
-def packJars = ['voidminers': 'voidminers-', 'mangomultiblock': 'mangomultiblock-', 'mm': 'MasterfulMachinery-']
+def packJars = ['voidminers': 'voidminers-', 'mangomultiblock': 'mangomultiblock-', 'mm': 'MasterfulMachinery-', 'guideme': 'guideme-']
 
 tasks.register('copyPackMods', Copy) {
     from(pack_mods) { packJars.each { id, prefix -> include "${prefix}*.jar" } }

@@ -6,6 +6,7 @@ import dev.sylviromi.mbplacer.build.Materials;
 import dev.sylviromi.mbplacer.build.Resolver;
 import dev.sylviromi.mbplacer.item.PlacerItem;
 import dev.sylviromi.mbplacer.structure.BlockSpec;
+import dev.sylviromi.mbplacer.structure.Blueprint;
 import dev.sylviromi.mbplacer.structure.Catalog;
 import dev.sylviromi.mbplacer.structure.Selection;
 import dev.sylviromi.mbplacer.structure.VariantSet;
@@ -42,22 +43,42 @@ public final class Net {
             b.writeCollection(variants, (buf, v) -> {
                 buf.writeUtf(v.id());
                 buf.writeCollection(v.blocks(), FriendlyByteBuf::writeUtf);
+                buf.writeUtf(v.match());
             });
         }
 
         static CatalogReset read(FriendlyByteBuf b) {
-            return new CatalogReset(b.readList(buf -> new VariantSet(buf.readUtf(), buf.readList(FriendlyByteBuf::readUtf))));
+            return new CatalogReset(b.readList(buf -> new VariantSet(buf.readUtf(), buf.readList(FriendlyByteBuf::readUtf), buf.readUtf())));
         }
     }
 
-    public record BlueprintSync(String id, CompoundTag tag) {
+    /** One blueprint as a palette plus packed positions; raw structure NBT can exceed the packet NBT limit. */
+    public record BlueprintSync(Blueprint bp) {
         void write(FriendlyByteBuf b) {
-            b.writeUtf(id);
-            b.writeNbt(tag);
+            b.writeUtf(bp.id());
+            List<BlockSpec> palette = new ArrayList<>();
+            Map<BlockSpec, Integer> index = new HashMap<>();
+            bp.blocks().values().forEach(spec -> index.computeIfAbsent(spec, k -> { palette.add(k); return palette.size() - 1; }));
+            b.writeCollection(palette, (buf, spec) -> {
+                buf.writeUtf(spec.id());
+                buf.writeMap(spec.props(), FriendlyByteBuf::writeUtf, FriendlyByteBuf::writeUtf);
+                buf.writeNbt(spec.nbt());
+            });
+            b.writeVarInt(bp.blocks().size());
+            bp.blocks().forEach((pos, spec) -> {
+                b.writeLong(pos.asLong());
+                b.writeVarInt(index.get(spec));
+            });
         }
 
         static BlueprintSync read(FriendlyByteBuf b) {
-            return new BlueprintSync(b.readUtf(), b.readNbt());
+            String id = b.readUtf();
+            List<BlockSpec> palette = b.readList(buf -> new BlockSpec(buf.readUtf(),
+                    Map.copyOf(buf.readMap(FriendlyByteBuf::readUtf, FriendlyByteBuf::readUtf)), buf.readNbt()));
+            int n = b.readVarInt();
+            Map<BlockPos, BlockSpec> blocks = new LinkedHashMap<>();
+            for (int i = 0; i < n; i++) blocks.put(BlockPos.of(b.readLong()), palette.get(b.readVarInt()));
+            return new BlueprintSync(new Blueprint(id, blocks));
         }
     }
 
@@ -108,7 +129,7 @@ public final class Net {
         for (ServerPlayer p : players) {
             var target = PacketDistributor.PLAYER.with(() -> p);
             CHANNEL.send(target, new CatalogReset(List.copyOf(c.variants.values())));
-            c.raw.forEach((bid, tag) -> CHANNEL.send(target, new BlueprintSync(bid, tag)));
+            c.blueprints.values().forEach(bp -> CHANNEL.send(target, new BlueprintSync(bp)));
         }
     }
 
@@ -120,7 +141,7 @@ public final class Net {
     }
 
     private static void onBlueprint(BlueprintSync m, Supplier<NetworkEvent.Context> ctx) {
-        Catalog.client.addBlueprint(m.id(), m.tag());
+        Catalog.client.addBlueprint(m.bp());
     }
 
     private static void onReport(Report m, Supplier<NetworkEvent.Context> ctx) {

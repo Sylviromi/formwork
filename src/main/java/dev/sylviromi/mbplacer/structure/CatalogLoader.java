@@ -45,7 +45,7 @@ public class CatalogLoader extends SimplePreparableReloadListener<Catalog> {
                         MbPlacer.LOG.debug("Skipping blueprint {}: unknown block {}", id, missing);
                         continue;
                     }
-                    catalog.addBlueprint(id, tag);
+                    catalog.addBlueprint(bp);
                 } catch (Exception ex) {
                     MbPlacer.LOG.warn("Could not read blueprint {}", rl, ex);
                 }
@@ -55,13 +55,15 @@ public class CatalogLoader extends SimplePreparableReloadListener<Catalog> {
             ResourceLocation rl = e.getKey();
             String id = rl.getNamespace() + ":" + rl.getPath().substring("mbplacer/variants/".length(), rl.getPath().length() - 5);
             try (Reader r = e.getValue().openAsReader()) {
-                JsonArray arr = JsonParser.parseReader(r).getAsJsonObject().getAsJsonArray("blocks");
+                var json = JsonParser.parseReader(r).getAsJsonObject();
+                JsonArray arr = json.getAsJsonArray("blocks");
+                String match = json.has("match") ? json.get("match").getAsString() : "";
                 List<String> blocks = new ArrayList<>();
                 for (JsonElement b : arr) {
                     String block = b.getAsString().trim();
                     if (isBlock(block)) blocks.add(block);
                 }
-                if (blocks.size() > 1) catalog.addVariants(new VariantSet(id, List.copyOf(blocks)));
+                if (blocks.size() > 1) catalog.addVariants(new VariantSet(id, List.copyOf(blocks), match));
             } catch (Exception ex) {
                 MbPlacer.LOG.warn("Could not read variant set {}", rl, ex);
             }

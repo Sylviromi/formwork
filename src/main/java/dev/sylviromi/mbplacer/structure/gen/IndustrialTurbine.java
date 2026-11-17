@@ -28,19 +28,19 @@ public final class IndustrialTurbine implements Generator {
     @Override
     public Map<BlockPos, BlockSpec> build(int[] v) {
         int s = 5 + 2 * v[0], h = v[1], c = s / 2;
-        int rotors = Math.max(1, Math.min(v[2], Math.min(h - 4, 2 * s - 1)));
+        int rotors = Math.max(1, Math.min(v[2], Math.min(h - 4, 4 * ((s - 3) / 2) + 3))); // TurbineValidator: (s-3)/2 >= rotors/4
         int disperserY = rotors + 1;
         Box box = new Box(s, h, s).shell(G + "turbine_casing", v[4] == 1 ? M + "structural_glass" : G + "turbine_casing");
         for (int y = 1; y <= rotors; y++) box.set(c, y, c, G + "turbine_rotor");
         box.layer(disperserY, M + "pressure_disperser");
         box.set(c, disperserY, c, G + "rotational_complex");
-        // coils spread outward from the centre column in rings, starting on the layer above the complex
-        int coils = Math.min(v[3], (s - 2) * (s - 2) * (h - 2 - disperserY - 1));
+        // coils must form one face-connected group starting above the complex: fill by Manhattan distance, layer by layer
+        int coils = v[3];
         for (int y = disperserY + 1; y < h - 1 && coils > 0; y++)
-            for (int r = 0; r <= c && coils > 0; r++)
-                for (int x = c - r; x <= c + r && coils > 0; x++)
-                    for (int z = c - r; z <= c + r && coils > 0; z++)
-                        if (Math.max(Math.abs(x - c), Math.abs(z - c)) == r && x > 0 && z > 0 && x < s - 1 && z < s - 1) {
+            for (int d = 0; d <= 2 * (c - 1) && coils > 0; d++)
+                for (int x = 1; x < s - 1 && coils > 0; x++)
+                    for (int z = 1; z < s - 1 && coils > 0; z++)
+                        if (Math.abs(x - c) + Math.abs(z - c) == d) {
                             box.set(x, y, z, G + "electromagnetic_coil");
                             coils--;
                         }

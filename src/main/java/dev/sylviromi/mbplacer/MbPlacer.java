@@ -10,6 +10,8 @@ import net.minecraft.world.item.Item;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.AddReloadListenerEvent;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import dev.sylviromi.mbplacer.build.PlaceCommand;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
@@ -38,6 +40,7 @@ public class MbPlacer {
         });
         MinecraftForge.EVENT_BUS.addListener((AddReloadListenerEvent e) -> e.addListener(new CatalogLoader()));
         MinecraftForge.EVENT_BUS.addListener(Net::onDatapackSync);
+        MinecraftForge.EVENT_BUS.addListener((RegisterCommandsEvent e) -> PlaceCommand.register(e.getDispatcher()));
         if (AE2) MinecraftForge.EVENT_BUS.addListener(AeLink::onServerTick);
     }
 

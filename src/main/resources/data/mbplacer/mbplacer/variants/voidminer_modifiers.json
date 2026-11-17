@@ -1,4 +1,5 @@
 {
+  "match": "voidminer",
   "blocks": [
     "voidminers:null_modifier",
     "voidminers:rubetine_energy_modifier",

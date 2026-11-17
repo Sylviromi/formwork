@@ -1,7 +1,6 @@
 package dev.sylviromi.mbplacer.structure;
 
 import dev.sylviromi.mbplacer.structure.gen.*;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraftforge.fml.ModList;
 
 import java.util.*;
@@ -21,29 +20,24 @@ public final class Catalog {
     }
 
     private static final List<Generator> ALL_GENERATORS = List.of(new FissionReactor(), new IndustrialTurbine(),
-            new ThermoelectricBoiler(), new InductionMatrix(), new DynamicTank());
+            new ThermoelectricBoiler(), new InductionMatrix(), new DynamicTank(), new ThermalEvaporation());
     private static final Pattern TIER = Pattern.compile("^(.*?)_?tier_?(\\d+)(.*)$");
 
     /** One row in the list: a lone blueprint, a group of tiers, or a generator. Members are ids, lowest tier first. */
     public record Entry(String key, List<String> members) {
     }
 
-    /** Raw structure nbt by blueprint id, kept so the server can send it to clients unchanged. */
-    public final Map<String, CompoundTag> raw = new LinkedHashMap<>();
     public final Map<String, Blueprint> blueprints = new LinkedHashMap<>();
     public final Map<String, VariantSet> variants = new LinkedHashMap<>();
-    private Map<String, VariantSet> variantOfBlock;
     private List<Entry> entries;
 
-    public void addBlueprint(String id, CompoundTag tag) {
-        raw.put(id, tag);
-        blueprints.put(id, Blueprint.fromStructureNbt(id, tag));
+    public void addBlueprint(Blueprint bp) {
+        blueprints.put(bp.id(), bp);
         entries = null;
     }
 
     public void addVariants(VariantSet set) {
         variants.put(set.id(), set);
-        variantOfBlock = null;
     }
 
     public Optional<Generator> generator(String id) {
@@ -54,12 +48,15 @@ public final class Catalog {
         return ALL_GENERATORS.stream().filter(g -> ModList.get() == null || ModList.get().isLoaded(g.requiredMod())).toList();
     }
 
-    public VariantSet variantOf(String blockId) {
-        if (variantOfBlock == null) {
-            variantOfBlock = new HashMap<>();
-            variants.values().forEach(s -> s.blocks().forEach(b -> variantOfBlock.putIfAbsent(b, s)));
+    /** The variant set a block belongs to within an entry; sets with a match win over global ones. */
+    public VariantSet variantOf(String blockId, String entryId) {
+        VariantSet global = null;
+        for (VariantSet s : variants.values()) {
+            if (!s.blocks().contains(blockId) || !s.appliesTo(entryId)) continue;
+            if (!s.match().isEmpty()) return s;
+            if (global == null) global = s;
         }
-        return variantOfBlock.get(blockId);
+        return global;
     }
 
     public List<Entry> entries() {

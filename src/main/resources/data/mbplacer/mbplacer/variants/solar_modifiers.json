@@ -1,4 +1,5 @@
 {
+  "match": "solar",
   "blocks": [
     "voidminers:null_modifier",
     "voidminers:solar_rubetine_efficiency_modifier",

@@ -42,11 +42,12 @@
   "mbplacer.param.cell_tier": "Cell tier",
   "mbplacer.param.provider_tier": "Provider tier",
   "mbplacer.param.providers": "Providers",
-  "mbplacer.structure.mekanism_fission_reactor": "Fission Reactor (any size)",
-  "mbplacer.structure.mekanism_turbine": "Industrial Turbine (any size)",
-  "mbplacer.structure.mekanism_boiler": "Thermoelectric Boiler (any size)",
-  "mbplacer.structure.mekanism_induction_matrix": "Induction Matrix (any size)",
-  "mbplacer.structure.mekanism_dynamic_tank": "Dynamic Tank (any size)",
+  "mbplacer.gen.mekanism_fission_reactor": "Fission Reactor (any size)",
+  "mbplacer.gen.mekanism_turbine": "Industrial Turbine (any size)",
+  "mbplacer.gen.mekanism_boiler": "Thermoelectric Boiler (any size)",
+  "mbplacer.gen.mekanism_induction_matrix": "Induction Matrix (any size)",
+  "mbplacer.gen.mekanism_dynamic_tank": "Dynamic Tank (any size)",
+  "mbplacer.gen.mekanism_thermal_evaporation": "Thermal Evaporation Plant (any height)",
   "mbplacer.structure.voidminer": "Void Miner",
   "mbplacer.structure.solarpanel": "Solar Panel"
 }
