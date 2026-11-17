@@ -62,7 +62,8 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
 - [x] Verified with screenshots (`./gradlew runClient -Pmbdev`, output in `run/screenshots/`): picker for void miner, fission and turbine, and the world ghost.
 - [ ] **Void miner formation is not verified.** It places correctly with mixed modifiers, but the formed flag is only in memory and the controller needs power to show work.
   - Test in game: build a tier 9 with mixed modifiers and right-click the controller.
-  - Also unknown: whether a tier N miner accepts higher or lower tier modifiers.
+  - Resolved: the modifier slot accepts the `voidminers:modifiers` tag, which holds every tier plus null and solar modifiers, so mixed tiers are valid.
+  - Frames use `frames/N` tags: tier N accepts frames of tier N and up. Not offered as a variant yet.
 - [ ] **AE2 is untested in game.** Test:
   - link in a WAP
   - materials show ME counts
