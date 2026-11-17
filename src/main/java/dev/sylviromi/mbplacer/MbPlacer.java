@@ -46,6 +46,7 @@ public class MbPlacer {
         MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedInEvent e) -> { if (e.getEntity() instanceof ServerPlayer p) Net.syncPlacements(p); });
         MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerChangedDimensionEvent e) -> { if (e.getEntity() instanceof ServerPlayer p) Net.syncPlacements(p); });
         MinecraftForge.EVENT_BUS.addListener((RegisterCommandsEvent e) -> PlaceCommand.register(e.getDispatcher()));
+        if (AE2) MinecraftForge.EVENT_BUS.addListener(AeLink::onServerTick);
         MinecraftForge.EVENT_BUS.addListener(dev.sylviromi.mbplacer.build.Updater::onServerTick);
     }
 

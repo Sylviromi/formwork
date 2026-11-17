@@ -105,11 +105,23 @@ public final class DevHooks {
         step(t += 20, null, mc -> onServer(mc, DevHooks::infinityCard));
         step(t += 60, null, mc -> onServer(mc, sp -> meAt(sp, 80)));
         // AE2's own craft screen from the wand, next to the access point
+        step(t += 10, null, mc -> {
+            editor(mc, FISSION, "MATERIALS", null);
+            ClientHooks.resume = (EditorScreen) mc.screen;
+        });
         step(t += 20, null, mc -> onServer(mc, sp -> {
             meAt(sp, 5);
             dev.sylviromi.mbplacer.ae2.AeLink.openCraft(sp, net.minecraft.world.InteractionHand.MAIN_HAND, net.minecraft.world.item.Items.STONE, 64);
         }));
         step(t += 40, "ae2_craft", null);
+        // AE2's Back (and Start) return through the host: the editor comes back
+        step(t += 5, null, mc -> onServer(mc, sp -> {
+            if (sp.containerMenu instanceof appeng.menu.ISubMenu sub)
+                sub.getHost().returnToMainMenu(sp, sub);
+            else MbPlacer.LOG.warn("dev: no AE2 sub menu open: {}", sp.containerMenu);
+        }));
+        step(t += 30, "ae2_back", null);
+        step(t += 1, null, mc -> MbPlacer.LOG.info("dev: screen after AE2 back: {}", mc.screen));
         step(t += 20, null, Minecraft::stop);
     }
 

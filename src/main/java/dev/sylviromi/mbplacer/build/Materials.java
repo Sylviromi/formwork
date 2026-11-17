@@ -21,7 +21,8 @@ public final class Materials {
     }
 
     /** One line of the material list. me = -1 when there is no ME access. */
-    public record Row(Item item, int needed, int inventory, long me, boolean craftable) {
+    /** crafting: percent done of an AE2 job making this item, or -1; eta: its estimated seconds left, or -1 when not known yet. */
+    public record Row(Item item, int needed, int inventory, long me, boolean craftable, int crafting, int eta) {
         public int missing() {
             return (int) Math.max(0, needed - inventory - Math.max(0, me));
         }
@@ -29,10 +30,12 @@ public final class Materials {
         public void write(FriendlyByteBuf buf) {
             buf.writeId(net.minecraft.core.registries.BuiltInRegistries.ITEM, item);
             buf.writeVarInt(needed).writeVarInt(inventory).writeVarLong(me + 1).writeBoolean(craftable);
+            buf.writeVarInt(crafting + 1).writeVarInt(eta + 1);
         }
 
         public static Row read(FriendlyByteBuf buf) {
-            return new Row(buf.readById(net.minecraft.core.registries.BuiltInRegistries.ITEM), buf.readVarInt(), buf.readVarInt(), buf.readVarLong() - 1, buf.readBoolean());
+            return new Row(buf.readById(net.minecraft.core.registries.BuiltInRegistries.ITEM), buf.readVarInt(), buf.readVarInt(), buf.readVarLong() - 1, buf.readBoolean(),
+                    buf.readVarInt() - 1, buf.readVarInt() - 1);
         }
     }
 
@@ -86,7 +89,8 @@ public final class Materials {
         List<Row> rows = new ArrayList<>();
         needed.forEach((item, n) -> {
             long[] m = me == null ? null : me.get(item);
-            rows.add(new Row(item, n, inInventory(player.getInventory(), item), m == null ? -1 : m[0], m != null && m[1] == 1));
+            rows.add(new Row(item, n, inInventory(player.getInventory(), item), m == null ? -1 : m[0], m != null && m[1] == 1,
+                    m == null ? -1 : (int) m[2], m == null ? -1 : (int) m[3]));
         });
         rows.sort(Comparator.comparingInt(Row::missing).reversed().thenComparing(r -> ForgeRegistries.ITEMS.getKey(r.item()).toString()));
         return rows;

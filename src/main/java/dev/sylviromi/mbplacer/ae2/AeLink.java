@@ -5,6 +5,9 @@ import appeng.api.features.GridLinkables;
 import appeng.api.features.IGridLinkableHandler;
 import appeng.api.implementations.blockentities.IWirelessAccessPoint;
 import appeng.api.networking.IGrid;
+import appeng.api.networking.crafting.CalculationStrategy;
+import appeng.api.networking.crafting.ICraftingPlan;
+import appeng.api.networking.crafting.ICraftingSimulationRequester;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.networking.IGridNode;
 import appeng.api.stacks.AEItemKey;
@@ -12,6 +15,7 @@ import appeng.core.definitions.AEItems;
 import appeng.helpers.WirelessTerminalMenuHost;
 import appeng.menu.locator.MenuLocators;
 import appeng.menu.me.crafting.CraftAmountMenu;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.nbt.NbtOps;
@@ -20,9 +24,14 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraftforge.event.TickEvent;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 
 /**
  * Everything that touches AE2. Only call into this class after checking that AE2 is loaded.
@@ -82,13 +91,27 @@ public final class AeLink {
         return new WirelessTerminalMenuHost(player, null, terminal, (p, m) -> {}).getActionableNode();
     }
 
-    /** Stored amount and craftability for each item, or null when the tool has no reachable grid. */
+    /** Stored amount, craftability, and the percent done and seconds left of a running craft (-1 if none) per item; null without a reachable grid. */
     @Nullable
     public static Map<Item, long[]> snapshot(ServerPlayer player, ItemStack tool, Iterable<Item> items) {
         IGrid grid = grid(player, tool);
         if (grid == null) return null;
+        Map<appeng.api.stacks.AEKey, appeng.api.networking.crafting.CraftingJobStatus> jobs = new java.util.HashMap<>();
+        for (var cpu : grid.getCraftingService().getCpus()) {
+            var job = cpu.getJobStatus();
+            if (job != null) jobs.putIfAbsent(job.crafting().what(), job);
+        }
         Map<Item, long[]> out = new java.util.HashMap<>();
-        for (Item item : items) out.put(item, new long[]{stored(grid, item), craftable(grid, item) ? 1 : 0});
+        for (Item item : items) {
+            var job = jobs.get(AEItemKey.of(item));
+            long pct = -1, eta = -1;
+            if (job != null && job.totalItems() > 0) {
+                pct = Math.min(99, job.progress() * 100 / job.totalItems());
+                // AE2 shows no estimate either: assume the rest goes as fast as the part done so far
+                if (job.progress() > 0) eta = job.elapsedTimeNanos() / 1_000_000_000L * (job.totalItems() - job.progress()) / job.progress();
+            }
+            out.put(item, new long[]{stored(grid, item), craftable(grid, item) ? 1 : 0, pct, Math.min(eta, Integer.MAX_VALUE)});
+        }
         return out;
     }
 
@@ -134,6 +157,48 @@ public final class AeLink {
     public static void openCraft(ServerPlayer player, InteractionHand hand, Item item, int amount) {
         if (node(player, player.getItemInHand(hand)) == null) return;
         CraftAmountMenu.open(player, MenuLocators.forHand(player, hand), AEItemKey.of(item), Math.max(1, amount));
+    }
+
+    private record Pending(ServerPlayer player, IGrid grid, Item item, Future<ICraftingPlan> plan) {
+    }
+
+    private static final List<Pending> PENDING = new ArrayList<>();
+
+    /** Starts a crafting calculation per craftable item; each job is submitted from the server tick once its plan is ready. */
+    public static void craftAll(ServerPlayer player, ItemStack tool, Map<Item, Long> amounts) {
+        IGrid grid = grid(player, tool);
+        if (grid == null) return;
+        ICraftingSimulationRequester requester = () -> IActionSource.ofPlayer(player);
+        int n = 0;
+        for (var e : amounts.entrySet()) {
+            if (!craftable(grid, e.getKey())) continue;
+            PENDING.add(new Pending(player, grid, e.getKey(), grid.getCraftingService().beginCraftingCalculation(
+                    player.level(), requester, AEItemKey.of(e.getKey()), e.getValue(), CalculationStrategy.REPORT_MISSING_ITEMS)));
+            n++;
+        }
+        player.displayClientMessage(Component.translatable("mbplacer.msg.crafting_started", n), true);
+    }
+
+    public static void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END || PENDING.isEmpty()) return;
+        for (Iterator<Pending> it = PENDING.iterator(); it.hasNext(); ) {
+            Pending p = it.next();
+            if (!p.plan().isDone()) continue;
+            it.remove();
+            Component name = p.item().getDescription();
+            try {
+                ICraftingPlan plan = p.plan().get();
+                if (plan.simulation()) {
+                    p.player().sendSystemMessage(Component.translatable("mbplacer.msg.craft_missing", name));
+                    continue;
+                }
+                var result = p.grid().getCraftingService().submitJob(plan, null, null, false, IActionSource.ofPlayer(p.player()));
+                if (!result.successful())
+                    p.player().sendSystemMessage(Component.translatable("mbplacer.msg.craft_failed", name, String.valueOf(result.errorCode())));
+            } catch (Exception e) {
+                p.player().sendSystemMessage(Component.translatable("mbplacer.msg.craft_failed", name, e.getMessage()));
+            }
+        }
     }
 
     /** The tool as registered when AE2 is present: it can host AE2's craft screens. */

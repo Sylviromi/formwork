@@ -65,7 +65,7 @@ public class PlacerItem extends Item {
     public record Placement(BlockPos target, Direction facing) {
     }
 
-    /** How far the tool aims when placing (dismantling and editing use the normal reach). */
+    /** How far the tool aims when placing (dismantling and editing too). */
     public static final double PLACE_RANGE = 64;
 
     /** The block the tool aims at for placing, up to PLACE_RANGE away. */
@@ -168,7 +168,7 @@ public class PlacerItem extends Item {
     public static Placements.Rec placementLookedAt(Player player) {
         boolean server = player.level() instanceof ServerLevel;
         var recs = server ? Placements.of((ServerLevel) player.level()).all() : ClientData.placements;
-        if (recs.isEmpty() || !(player.pick(player.getBlockReach(), 1, false) instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK) return null;
+        if (recs.isEmpty() || !(player.pick(PLACE_RANGE, 1, false) instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK) return null;
         Placements.Rec rec = Placements.at(recs, hit.getBlockPos());
         return rec != null && Placements.positions(rec, Catalog.side(!server)).contains(hit.getBlockPos()) ? rec : null;
     }

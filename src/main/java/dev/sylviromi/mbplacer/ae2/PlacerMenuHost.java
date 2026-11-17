@@ -31,6 +31,8 @@ final class PlacerMenuHost extends ItemMenuHost implements IActionHost, ISubMenu
     @Override
     public void returnToMainMenu(Player player, ISubMenu subMenu) {
         player.closeContainer();
+        // back to the editor the craft screen was opened from (AE2 returns here after Start or Back)
+        if (player instanceof ServerPlayer sp) dev.sylviromi.mbplacer.net.Net.CHANNEL.send(net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> sp), new dev.sylviromi.mbplacer.net.Net.ReturnToEditor());
     }
 
     @Override

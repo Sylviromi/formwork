@@ -14,6 +14,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -284,6 +285,25 @@ public class EditorScreen extends Screen {
     }
 
 
+    private Line actionLine(Component label, Runnable action) {
+        return new Line() {
+            @Override public int height() { return 22; }
+            @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
+                Ui.button(g, font, x, y + 3, w, 16, label, false, mx, my);
+            }
+
+            @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
+                action.run();
+                return true;
+            }
+        };
+    }
+
+    /** "40% ~1m 05s" for a row being crafted by AE2. */
+    private static String craftLabel(Materials.Row r) {
+        return r.crafting() + "%" + (r.eta() < 0 ? "" : r.eta() >= 60 ? " ~" + r.eta() / 60 + "m " + String.format("%02d", r.eta() % 60) + "s" : " ~" + r.eta() + "s");
+    }
+
     private static List<String> reversed(List<String> l) {
         List<String> out = new ArrayList<>(l);
         Collections.reverse(out);
@@ -337,6 +357,10 @@ public class EditorScreen extends Screen {
                     break;
                 }
                 boolean me = ClientData.me == Materials.MeStatus.CONNECTED;
+                Map<Item, Integer> craftAll = new LinkedHashMap<>();
+                if (me) ClientData.rows.stream().filter(r -> r.missing() > 0 && r.craftable()).forEach(r -> craftAll.put(r.item(), r.missing()));
+                if (craftAll.size() > 1)
+                    out.add(actionLine(Component.translatable("mbplacer.gui.craft_all", craftAll.size()), () -> Net.CHANNEL.sendToServer(new Net.CraftAll(craftAll))));
                 for (Materials.Row r : ClientData.rows) {
                     int have = (int) Math.min(Integer.MAX_VALUE, r.inventory() + Math.max(0, r.me()));
                     int color = r.missing() == 0 ? GREEN : r.craftable() ? YELLOW : RED;
@@ -348,7 +372,7 @@ public class EditorScreen extends Screen {
                         @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
                             if (in(mx, my, x - 3, y, w + 6, 18)) g.fill(x - 3, y, x + w + 3, y + 18, HOVER);
                             g.renderItem(stack, x, y + 1);
-                            String count = Math.min(have, r.needed()) + "/" + r.needed();
+                            String count = (r.crafting() >= 0 ? craftLabel(r) + "  " : "") + Math.min(have, r.needed()) + "/" + r.needed();
                             g.drawString(font, font.plainSubstrByWidth(stack.getHoverName().getString(), w - 24 - font.width(count)), x + 18, y + 5, TEXT, false);
                             g.drawString(font, count, x + w - font.width(count), y + 5, color, false);
                             if (in(mx, my, x, y, w, 18))
@@ -359,7 +383,10 @@ public class EditorScreen extends Screen {
 
                         /** A missing, craftable row opens AE2's own craft screen for it. */
                         @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
-                            if (canCraft) Net.CHANNEL.sendToServer(new Net.OpenCraft(r.item(), r.missing()));
+                            if (canCraft) {
+                                ClientHooks.resume = EditorScreen.this;
+                                Net.CHANNEL.sendToServer(new Net.OpenCraft(r.item(), r.missing()));
+                            }
                             return canCraft;
                         }
                     });

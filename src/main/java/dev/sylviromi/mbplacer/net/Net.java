@@ -25,6 +25,8 @@ import net.minecraftforge.event.OnDatapackSyncEvent;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.NetworkRegistry;
+import net.minecraftforge.fml.DistExecutor;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
@@ -33,7 +35,7 @@ import java.util.function.Supplier;
 
 /** All packets. Server to client: catalog sync and material reports. Client to server: selection, report query, craft request. */
 public final class Net {
-    private static final String VERSION = "8";
+    private static final String VERSION = "9";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(MbPlacer.ID, "main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -176,6 +178,21 @@ public final class Net {
         }
     }
 
+    /** Start AE2 crafting jobs for all these missing materials at once, without AE2's screens. */
+    public record CraftAll(Map<Item, Integer> amounts) {
+        void write(FriendlyByteBuf b) {
+            b.writeMap(amounts, (o, i) -> o.writeId(net.minecraft.core.registries.BuiltInRegistries.ITEM, i), FriendlyByteBuf::writeVarInt);
+        }
+
+        static CraftAll read(FriendlyByteBuf b) {
+            return new CraftAll(b.readMap(i -> i.readById(net.minecraft.core.registries.BuiltInRegistries.ITEM), FriendlyByteBuf::readVarInt));
+        }
+    }
+
+    /** AE2's craft screen is done: reopen the editor it was opened from. */
+    public record ReturnToEditor() {
+    }
+
     public record Report(Materials.MeStatus me, String entry, int blocks, List<Materials.Row> rows) {
         void write(FriendlyByteBuf b) {
             b.writeEnum(me);
@@ -201,6 +218,11 @@ public final class Net {
                 .encoder(SetSelection::write).decoder(SetSelection::read).consumerMainThread(Net::onSetSelection).add();
         CHANNEL.messageBuilder(OpenCraft.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(OpenCraft::write).decoder(OpenCraft::read).consumerMainThread(Net::onOpenCraft).add();
+        CHANNEL.messageBuilder(ReturnToEditor.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder((m, b) -> {}).decoder(b -> new ReturnToEditor())
+                .consumerMainThread((m, ctx) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> dev.sylviromi.mbplacer.client.ClientHooks::resumeEditor)).add();
+        CHANNEL.messageBuilder(CraftAll.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(CraftAll::write).decoder(CraftAll::read).consumerMainThread(Net::onCraftAll).add();
         CHANNEL.messageBuilder(PlacementsSync.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(PlacementsSync::write).decoder(PlacementsSync::read).consumerMainThread((m, ctx) -> { ClientData.placements = m.recs(); }).add();
         CHANNEL.messageBuilder(Progress.class, id++, NetworkDirection.PLAY_TO_CLIENT)
@@ -307,6 +329,18 @@ public final class Net {
         for (InteractionHand hand : InteractionHand.values())
             if (p.getItemInHand(hand).getItem() instanceof PlacerItem) {
                 AeLink.openCraft(p, hand, m.item(), Math.min(m.amount(), 1 << 20));
+                return;
+            }
+    }
+
+    private static void onCraftAll(CraftAll m, Supplier<NetworkEvent.Context> ctx) {
+        ServerPlayer p = ctx.get().getSender();
+        if (p == null || !MbPlacer.AE2) return;
+        Map<Item, Long> amounts = new LinkedHashMap<>();
+        m.amounts().forEach((item, n) -> { if (item != null && n > 0) amounts.put(item, (long) Math.min(n, 1 << 20)); });
+        for (InteractionHand hand : InteractionHand.values())
+            if (p.getItemInHand(hand).getItem() instanceof PlacerItem) {
+                AeLink.craftAll(p, p.getItemInHand(hand), amounts);
                 return;
             }
     }

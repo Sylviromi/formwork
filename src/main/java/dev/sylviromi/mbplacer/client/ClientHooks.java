@@ -33,6 +33,15 @@ public final class ClientHooks {
     }
 
     /** Pointing at a placed multiblock: edit it. Else the editor for the tool's multiblock, or the browser when nothing (known) is selected. */
+    /** The editor that opened one of AE2's craft screens, reopened when that screen returns. */
+    @org.jetbrains.annotations.Nullable
+    public static EditorScreen resume;
+
+    public static void resumeEditor() {
+        if (resume != null) Minecraft.getInstance().setScreen(resume);
+        resume = null;
+    }
+
     public static void openScreen() {
         Minecraft mc = Minecraft.getInstance();
         Placements.Rec placed = PlacerItem.placementLookedAt(mc.player);
