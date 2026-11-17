@@ -239,6 +239,8 @@ public class PlacerItem extends Item {
         tooltip.add(Component.translatable(linked ? "mbplacer.tooltip.linked" : "mbplacer.tooltip.unlinked").withStyle(ChatFormatting.GRAY));
         if (anchor(stack) != null) tooltip.add(Component.translatable("mbplacer.tooltip.anchored").withStyle(ChatFormatting.YELLOW));
         tooltip.add(Component.translatable("mbplacer.tooltip.usage").withStyle(ChatFormatting.DARK_GRAY));
+        tooltip.add(Component.translatable("mbplacer.tooltip.placed").withStyle(ChatFormatting.DARK_GRAY));
+        tooltip.add(Component.translatable("mbplacer.tooltip.card").withStyle(ChatFormatting.DARK_GRAY));
     }
 
     /**

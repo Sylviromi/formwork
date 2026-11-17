@@ -3,7 +3,7 @@
   "mbplacer.tooltip.selected": "Selected: %s",
   "mbplacer.tooltip.linked": "Linked to an ME network",
   "mbplacer.tooltip.unlinked": "Not linked (put it in a Wireless Access Point)",
-  "mbplacer.tooltip.usage": "Sneak + use: choose. Use: place. On a placed multiblock: hold use to dismantle, sneak + use to edit. H: placement card.",
+  "mbplacer.tooltip.usage": "Sneak + use: choose a multiblock. Use: place it.",
   "mbplacer.msg.nothing_selected": "Nothing selected. Sneak + use to choose a multiblock.",
   "mbplacer.msg.invalid_selection": "The selected multiblock is not available on this server.",
   "mbplacer.msg.blocked": "Blocked at %s %s %s",
@@ -65,8 +65,6 @@
   "mbplacer.gui.apply_tip": "Swap only the blocks that change. Materials shows what it costs.",
   "mbplacer.msg.updated": "Updated: %s blocks removed, %s placed",
   "mbplacer.gui.backward": "Back (Down arrow)",
-  "mbplacer.hud.hint": "Hold use: dismantle · Sneak + use: edit",
-  "mbplacer.hud.updating": "Updating %s",
   "mbplacer.gui.pick_tip": "Click to edit this block",
   "mbplacer.gui.pick_default": "The blueprint's block",
   "mbplacer.gui.pick_hint": "Click a block in the view to change it",
@@ -75,5 +73,7 @@
   "mbplacer.gui.changed": "%s / %s changed",
   "mbplacer.gui.all_like": "All %s",
   "mbplacer.gui.all_like_tip": "Use this block for every block of this kind",
-  "mbplacer.gui.other": "Other"
+  "mbplacer.gui.other": "Other",
+  "mbplacer.tooltip.placed": "On a placed multiblock: hold use to dismantle, sneak + use to edit.",
+  "mbplacer.tooltip.card": "H: placement card (anchor, move, turn)."
 }

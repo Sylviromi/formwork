@@ -17,7 +17,7 @@ import net.minecraftforge.fml.common.Mod;
 
 import static dev.sylviromi.mbplacer.client.Ui.*;
 
-/** Under the crosshair, while pointing at a placed multiblock with the tool: its name, what you can do, and the dismantle progress. */
+/** Under the crosshair, while pointing at a placed multiblock with the tool: its name, and the dismantle or update progress. */
 @Mod.EventBusSubscriber(modid = MbPlacer.ID, value = Dist.CLIENT)
 final class Hud {
     private static final int BAR_W = 64;
@@ -32,17 +32,20 @@ final class Hud {
         return Math.min(1, (p.getTicksUsingItem() + mc.getFrameTime()) / Placements.dismantleTicks(rec));
     }
 
-    /** A running in-place update (server job): "Updating <name>" and its progress. */
+    /** A running in-place update (server job): its name and progress. */
     private static void updating(GuiGraphics g, Minecraft mc) {
         Placements.Rec rec = ClientData.placements.stream().filter(r -> r.id().equals(ClientData.progressFor)).findFirst().orElse(null);
-        Component name = Component.translatable("mbplacer.hud.updating", rec == null ? "" : PlacerItem.displayName(Selection.load(rec.selection()).entry()));
-        int cx = g.guiWidth() / 2, y = g.guiHeight() / 2 + 12, w = Math.max(mc.font.width(name), BAR_W) + 10;
-        g.fill(cx - w / 2, y - 3, cx + w / 2, y + 17, 0xB00D1117);
-        g.renderOutline(cx - w / 2, y - 3, w, 20, BORDER);
-        g.drawCenteredString(mc.font, name, cx, y, ACCENT);
-        g.fill(cx - BAR_W / 2, y + 11, cx + BAR_W / 2, y + 14, CELL);
         float progress = (float) (System.currentTimeMillis() - ClientData.progressStart) / ClientData.progressMillis;
-        g.fill(cx - BAR_W / 2, y + 11, cx - BAR_W / 2 + (int) (BAR_W * Math.min(1, progress)), y + 14, ACCENT);
+        label(g, mc, rec == null ? Component.empty() : PlacerItem.displayName(Selection.load(rec.selection()).entry()), ACCENT, Math.min(1, progress), ACCENT);
+    }
+
+    /** The name under the crosshair, like vanilla's subtitle text, with a thin bar under it while something runs. */
+    private static void label(GuiGraphics g, Minecraft mc, Component name, int color, float progress, int barColor) {
+        int cx = g.guiWidth() / 2, y = g.guiHeight() / 2 + 10;
+        g.drawCenteredString(mc.font, name, cx, y, color);
+        if (progress <= 0) return;
+        g.fill(cx - BAR_W / 2, y + 11, cx + BAR_W / 2, y + 13, 0x80000000);
+        g.fill(cx - BAR_W / 2, y + 11, cx - BAR_W / 2 + (int) (BAR_W * progress), y + 13, barColor);
     }
 
     @SubscribeEvent
@@ -58,20 +61,7 @@ final class Hud {
         ItemStack tool = WorldGhost.heldTool();
         Placements.Rec rec = tool.isEmpty() ? null : PlacerItem.placementLookedAt(mc.player);
         if (rec == null) return;
-        var font = mc.font;
-        int cx = g.guiWidth() / 2, y = g.guiHeight() / 2 + 12;
-        Component name = PlacerItem.displayName(Selection.load(rec.selection()).entry());
-        Component hint = Component.translatable("mbplacer.hud.hint");
-        int w = Math.max(font.width(name), Math.max(font.width(hint), BAR_W)) + 10;
         float progress = progress(mc, rec);
-        int h = progress > 0 ? 30 : 24;
-        g.fill(cx - w / 2, y - 3, cx + w / 2, y + h - 3, 0xB00D1117);
-        g.renderOutline(cx - w / 2, y - 3, w, h, progress > 0 ? 0xFF7A3434 : BORDER);
-        g.drawCenteredString(font, name, cx, y, progress > 0 ? RED : ACCENT);
-        g.drawCenteredString(font, hint, cx, y + 11, DIM);
-        if (progress > 0) {
-            g.fill(cx - BAR_W / 2, y + 21, cx + BAR_W / 2, y + 24, CELL);
-            g.fill(cx - BAR_W / 2, y + 21, cx - BAR_W / 2 + (int) (BAR_W * progress), y + 24, RED);
-        }
+        label(g, mc, PlacerItem.displayName(Selection.load(rec.selection()).entry()), progress > 0 ? RED : ACCENT, progress, RED);
     }
 }
