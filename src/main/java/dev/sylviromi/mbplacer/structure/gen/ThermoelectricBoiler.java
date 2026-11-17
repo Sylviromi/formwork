@@ -12,13 +12,14 @@ public final class ThermoelectricBoiler implements Generator {
     private static final String M = "mekanism:";
 
     @Override public String id() { return "mbplacer:gen/mekanism_boiler"; }
+    @Override public String nameKey() { return "boiler.mekanism.thermoelectric_boiler"; }
     @Override public String requiredMod() { return "mekanism"; }
 
     @Override
     public List<Param> params() {
-        return List.of(Param.range("width", 3, 18, 7), Param.range("height", 5, 18, 9), Param.range("length", 3, 18, 7),
+        return List.of(Param.range("width", 3, 18, 7).named("gui.mekanism.width"), Param.range("height", 5, 18, 9).named("gui.mekanism.height"), Param.range("length", 3, 18, 7),
                 Param.range("disperser_height", 2, 16, 4), Param.range("heater_layers", 0, 15, 1),
-                Param.toggle("glass", true), Param.range("valves", 1, 8, 4));
+                Param.toggle("glass", true).named("block.mekanism.structural_glass"), Param.range("valves", 1, 8, 4).named("block.mekanism.boiler_valve"));
     }
 
     @Override

@@ -107,13 +107,13 @@ public class PlacementScreen extends Screen {
         // pad: moves relative to where the player looks
         int pw = 3 * B + 4, px = right - pw, pcx = px + B + 2, pcy = cy - half;
         icon(pcx, pcy - B - 2, B, Icon.UP, Component.translatable("mbplacer.gui.forward"), () -> false, () -> move(look(), step()), NORMAL);
-        icon(pcx, pcy + B + 2, B, Icon.DOWN, Component.translatable("mbplacer.gui.back"), () -> false, () -> move(look(), -step()), NORMAL);
+        icon(pcx, pcy + B + 2, B, Icon.DOWN, Component.translatable("mbplacer.gui.backward"), () -> false, () -> move(look(), -step()), NORMAL);
         icon(px, pcy, B, Icon.LEFT, Component.translatable("mbplacer.gui.left"), () -> false, () -> move(look().getCounterClockWise(), step()), NORMAL);
         icon(px + 2 * B + 4, pcy, B, Icon.RIGHT, Component.translatable("mbplacer.gui.right"), () -> false, () -> move(look().getClockWise(), step()), NORMAL);
         int uy = cy + 28, vw = (pw - 2) / 2;
         icon(px, uy, vw, Icon.TOP, Component.translatable("mbplacer.gui.up"), () -> false, () -> move(Direction.UP, step()), NORMAL);
         icon(right - vw, uy, vw, Icon.BOTTOM, Component.translatable("mbplacer.gui.down"), () -> false, () -> move(Direction.DOWN, step()), NORMAL);
-        text(x, uy, cx + 22 + half - x, Component.translatable("mbplacer.gui.reset_short").getString(), Component.translatable("mbplacer.gui.reset"), () -> false, () -> edit(t -> {
+        text(x, uy, cx + 22 + half - x, Component.translatable("controls.reset").getString(), Component.translatable("mbplacer.gui.reset"), () -> false, () -> edit(t -> {
             t.putIntArray(PlacerItem.OFFSET, new int[3]);
             t.putInt(PlacerItem.ROTATION, 0);
         }), NORMAL);

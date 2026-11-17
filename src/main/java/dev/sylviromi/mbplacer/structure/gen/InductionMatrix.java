@@ -12,13 +12,14 @@ public final class InductionMatrix implements Generator {
     private static final List<String> TIERS = List.of("basic", "advanced", "elite", "ultimate");
 
     @Override public String id() { return "mbplacer:gen/mekanism_induction_matrix"; }
+    @Override public String nameKey() { return "matrix.mekanism.induction_matrix"; }
     @Override public String requiredMod() { return "mekanism"; }
 
     @Override
     public List<Param> params() {
-        return List.of(Param.range("width", 3, 18, 5), Param.range("height", 3, 18, 5), Param.range("length", 3, 18, 5),
+        return List.of(Param.range("width", 3, 18, 5).named("gui.mekanism.width"), Param.range("height", 3, 18, 5).named("gui.mekanism.height"), Param.range("length", 3, 18, 5),
                 new Param("cell_tier", 0, 3, 0, TIERS), new Param("provider_tier", 0, 3, 0, TIERS),
-                Param.range("providers", 0, 4096, 1), Param.toggle("glass", true), Param.range("ports", 1, 8, 2));
+                Param.range("providers", 0, 4096, 1), Param.toggle("glass", true).named("block.mekanism.structural_glass"), Param.range("ports", 1, 8, 2).named("block.mekanism.induction_port"));
     }
 
     @Override

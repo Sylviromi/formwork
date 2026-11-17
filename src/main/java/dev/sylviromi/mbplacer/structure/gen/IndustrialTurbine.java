@@ -17,13 +17,14 @@ public final class IndustrialTurbine implements Generator {
     private static final String M = "mekanism:", G = "mekanismgenerators:";
 
     @Override public String id() { return "mbplacer:gen/mekanism_turbine"; }
+    @Override public String nameKey() { return "turbine.mekanismgenerators.industrial_turbine"; }
     @Override public String requiredMod() { return "mekanismgenerators"; }
 
     @Override
     public List<Param> params() {
         return List.of(new Param("size", 0, 6, 0, List.of("5", "7", "9", "11", "13", "15", "17")),
-                Param.range("height", 5, 18, 9), Param.range("rotors", 1, 14, 3), Param.range("coils", 1, 24, 2),
-                Param.toggle("glass", true), Param.toggle("condensers", false), Param.range("valves", 1, 8, 2));
+                Param.range("height", 5, 18, 9).named("gui.mekanism.height"), Param.range("rotors", 1, 14, 3).named("block.mekanismgenerators.turbine_rotor"), Param.range("coils", 1, 24, 2).named("block.mekanismgenerators.electromagnetic_coil"),
+                Param.toggle("glass", true).named("block.mekanism.structural_glass"), Param.toggle("condensers", false).named("block.mekanismgenerators.saturating_condenser"), Param.range("valves", 1, 8, 2).named("block.mekanismgenerators.turbine_valve"));
     }
 
     @Override

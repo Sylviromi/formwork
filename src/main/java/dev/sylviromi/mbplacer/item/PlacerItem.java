@@ -238,22 +238,31 @@ public class PlacerItem extends Item {
         tooltip.add(Component.translatable("mbplacer.tooltip.usage").withStyle(ChatFormatting.DARK_GRAY));
     }
 
-    /** Name of a blueprint or generator: our own lang key first, then the legacy mbtool key, then the raw name. */
+    /**
+     * Name of a list entry. A tier group without its own lang key is named by the words its members' names share,
+     * minus a trailing "Tier": "VoidMiner Tier 1 Rubetine" .. "VoidMiner Tier 9 Ultimate" -> "VoidMiner".
+     */
+    public static Component entryName(Catalog.Entry e) {
+        if (e.members().size() <= 1 || net.minecraft.locale.Language.getInstance().has("mbplacer.structure." + Catalog.shortName(e.key())))
+            return displayName(e.members().size() > 1 ? e.key() : e.members().get(0));
+        List<String> shared = new java.util.ArrayList<>(Catalog.sharedWords(e.members().stream()
+                .map(m -> List.of(displayName(m).getString().split(" "))).toList()));
+        while (!shared.isEmpty() && shared.get(shared.size() - 1).toLowerCase(java.util.Locale.ROOT).matches("tier.*|\\d+|-")) shared.remove(shared.size() - 1);
+        return shared.isEmpty() ? displayName(e.key()) : Component.literal(String.join(" ", shared));
+    }
+
+    /**
+     * Name of a blueprint or generator. Generators: the owning mod's own name (e.g. Mekanism's "Industrial Turbine").
+     * Blueprints: our lang key, then the legacy mbtool key the pack ships, then the prettified file name.
+     */
     public static Component displayName(String id) {
+        String own = Catalog.generators().stream().filter(g -> g.id().equals(id)).map(g -> g.nameKey()).findFirst().orElse("");
+        if (!own.isEmpty() && net.minecraft.locale.Language.getInstance().has(own)) return Component.translatable(own);
         String name = Catalog.shortName(id);
         List<String> keys = id.startsWith("mbplacer:gen/") ? List.of("mbplacer.gen." + name) : List.of("mbplacer.structure." + name, "mbtool.structure." + name);
         for (String key : keys)
             if (net.minecraft.locale.Language.getInstance().has(key)) return Component.translatable(key);
-        return Component.literal(prettify(name));
+        return Component.literal(Catalog.prettify(name));
     }
 
-    public static String prettify(String name) {
-        StringBuilder sb = new StringBuilder();
-        for (String part : name.split("[_\\-]+")) {
-            if (part.isEmpty()) continue;
-            if (!sb.isEmpty()) sb.append(' ');
-            sb.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
-        }
-        return sb.toString();
-    }
 }

@@ -174,7 +174,9 @@ public class EditorScreen extends Screen {
                 String v = value.get();
                 int vw = Math.max(24, font.width(v) + 4), rx = x + w;
                 if (in(mx, my, x - 3, y, w + 6, height())) g.fill(x - 3, y, x + w + 3, y + height(), HOVER);
-                g.drawString(font, font.plainSubstrByWidth(label.getString(), w - vw - 34), x, y + 4, TEXT, false);
+                String shown = font.plainSubstrByWidth(label.getString(), w - vw - 34);
+                g.drawString(font, shown, x, y + 4, TEXT, false);
+                if (shown.length() < label.getString().length() && in(mx, my, x, y, w - vw - 34, height())) setTooltipForNextRenderPass(label);
                 button(g, rx - vw - 28, y + 1, 13, 13, Icon.LEFT, false, mx, my);
                 g.drawCenteredString(font, v, rx - 14 - vw / 2, y + 4, TEXT);
                 button(g, rx - 13, y + 1, 13, 13, Icon.RIGHT, false, mx, my);
@@ -266,6 +268,25 @@ public class EditorScreen extends Screen {
         };
     }
 
+    /**
+     * A variant set's name from its blocks' own names: the words they all end with ("Energy Port Input", "Mechanical Pipe"),
+     * else the words they all start with ("Fission Reactor"). A pack can still name it with mbplacer.variants.<set>.
+     */
+    private static Component setName(VariantSet set) {
+        String key = "mbplacer.variants." + Catalog.shortName(set.id());
+        if (net.minecraft.locale.Language.getInstance().has(key)) return Component.translatable(key);
+        List<List<String>> names = set.blocks().stream().map(b -> List.of(iconOf(b).getHoverName().getString().split(" "))).toList();
+        List<String> shared = reversed(Catalog.sharedWords(names.stream().map(EditorScreen::reversed).toList()));
+        if (shared.isEmpty()) shared = Catalog.sharedWords(names);
+        return Component.literal(shared.isEmpty() ? Catalog.prettify(Catalog.shortName(set.id())) : String.join(" ", shared));
+    }
+
+    private static List<String> reversed(List<String> l) {
+        List<String> out = new ArrayList<>(l);
+        Collections.reverse(out);
+        return out;
+    }
+
     private int missing() {
         if (!ClientData.reportFor.equals(currentId())) return 0;
         return (int) ClientData.rows.stream().filter(r -> r.missing() > 0).count();
@@ -280,16 +301,13 @@ public class EditorScreen extends Screen {
                 for (int i = 0; i < ps.size(); i++) {
                     int idx = i;
                     Param p = ps.get(i);
-                    out.add(stepper(Component.translatable("mbplacer.param." + p.name()),
-                            () -> p.labels().isEmpty() ? String.valueOf(params[idx]) : p.labels().get(params[idx] - p.min()),
+                    out.add(stepper(p.label(), () -> p.valueLabel(params[idx]).getString(),
                             d -> { params[idx] = p.clamp(params[idx] + d); rebuild(true); }));
                 }
             });
             case VARIANTS -> slots().forEach((set, n) -> {
                 int used = VariantCounts.used(counts.getOrDefault(set.id(), Map.of()));
-                String key = "mbplacer.variants." + Catalog.shortName(set.id());
-                Component name = net.minecraft.locale.Language.getInstance().has(key) ? Component.translatable(key) : Component.literal(PlacerItem.prettify(Catalog.shortName(set.id())));
-                out.add(header(name, used + " / " + n));
+                out.add(header(setName(set), used + " / " + n));
                 out.add(grid(set, n));
             });
             case MATERIALS -> {
@@ -365,7 +383,7 @@ public class EditorScreen extends Screen {
 
     private void renderTopBar(GuiGraphics g, int mx, int my) {
         int y = y0 + 4;
-        button(g, font, x0 + PAD, y, 44, 15, Component.translatable(editing != null ? "gui.cancel" : "mbplacer.gui.back"), false, mx, my);
+        button(g, font, x0 + PAD, y, 44, 15, Component.translatable(editing != null ? "gui.cancel" : "gui.back"), false, mx, my);
         Component name = PlacerItem.displayName(currentId());
         if (editing != null) name = Component.translatable("mbplacer.gui.editing", name);
         g.drawString(font, font.plainSubstrByWidth(name.getString(), w / 2), x0 + PAD + 52, y + 4, editing != null ? YELLOW : TEXT, false);
@@ -399,7 +417,7 @@ public class EditorScreen extends Screen {
         int bx = vx + 4, by = vy + 4;
         if (button(g, bx, by, 15, 15, Icon.CCW, false, mx, my)) setTooltipForNextRenderPass(Component.translatable("mbplacer.gui.turn_left"));
         if (button(g, bx + 18, by, 15, 15, Icon.CW, false, mx, my)) setTooltipForNextRenderPass(Component.translatable("mbplacer.gui.turn_right"));
-        button(g, font, bx + 36, by, 38, 15, Component.translatable("mbplacer.gui.view_reset"), false, mx, my);
+        button(g, font, bx + 36, by, 38, 15, Component.translatable("controls.reset"), false, mx, my);
         button(g, font, bx + 76, by, 34, 15, Component.translatable("mbplacer.gui.spin"), view.spin, mx, my);
         String count = Component.translatable("mbplacer.gui.blocks", preview.size()).getString();
         g.drawString(font, count, vx + vw - 20 - font.width(count), vy + 8, DIM, false);

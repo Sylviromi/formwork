@@ -83,6 +83,29 @@ public final class Catalog {
         return new String[]{id.substring(0, start) + m.group(1), m.group(2)};
     }
 
+    /** "auto_sieve-tier" -> "Auto Sieve Tier": the fallback when nothing translates a name. */
+    public static String prettify(String name) {
+        StringBuilder sb = new StringBuilder();
+        for (String part : name.split("[_\\-]+")) {
+            if (part.isEmpty()) continue;
+            if (!sb.isEmpty()) sb.append(' ');
+            sb.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+        }
+        return sb.toString();
+    }
+
+    /** The words every list starts with. */
+    public static List<String> sharedWords(List<List<String>> lists) {
+        List<String> first = lists.get(0);
+        int n = 0;
+        while (n < first.size()) {
+            int i = n;
+            if (!lists.stream().allMatch(l -> l.size() > i && l.get(i).equals(first.get(i)))) break;
+            n++;
+        }
+        return first.subList(0, n);
+    }
+
     /** Last path part of an id, used for lang keys. */
     public static String shortName(String id) {
         return id.substring(Math.max(id.lastIndexOf('/'), id.indexOf(':')) + 1);

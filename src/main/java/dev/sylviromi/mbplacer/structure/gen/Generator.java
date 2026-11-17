@@ -10,6 +10,11 @@ import java.util.Map;
 public interface Generator {
     String id();
 
+    /** Lang key of the owning mod's name for this multiblock; empty: ours (mbplacer.gen.*). */
+    default String nameKey() {
+        return "";
+    }
+
     /** Mod id that must be loaded for this generator to be offered. */
     String requiredMod();
 

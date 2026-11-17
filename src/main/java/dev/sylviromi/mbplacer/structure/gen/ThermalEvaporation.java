@@ -11,11 +11,12 @@ public final class ThermalEvaporation implements Generator {
     private static final String M = "mekanism:";
 
     @Override public String id() { return "mbplacer:gen/mekanism_thermal_evaporation"; }
+    @Override public String nameKey() { return "evaporation.mekanism.evaporation_plant"; }
     @Override public String requiredMod() { return "mekanism"; }
 
     @Override
     public List<Param> params() {
-        return List.of(Param.range("height", 3, 18, 18), Param.range("valves", 0, 3, 2));
+        return List.of(Param.range("height", 3, 18, 18).named("gui.mekanism.height"), Param.range("valves", 0, 3, 2).named("block.mekanism.thermal_evaporation_valve"));
     }
 
     @Override

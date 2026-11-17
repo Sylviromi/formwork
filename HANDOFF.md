@@ -110,6 +110,13 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
 - Headless: `./gradlew runServer` (port 25599, RCON 25575 with password test), then `python3 /tmp/rcon.py "mbplacer place mbplacer:gen/mekanism_turbine 80 -60 0"` and `data get block ...`. The rcon.py script is a 10-line client and may need recreating.
 - Screenshots: `./gradlew runClient -Pmbdev` uses `run/saves/test` (a copy of `run/world` with the pack structures datapack). See `client/DevHooks`.
 
+## Names (v0.3.1): reuse other mods' translations
+- Generators name themselves with Mekanism's keys (`Generator.nameKey()`), settings with Mekanism block/GUI keys (`Param.named(...)`), toggles with vanilla `options.on/off`.
+- Variant sets are named by the words their blocks' names share ("Energy Port Input"); tier groups by the words their members' names share, minus "Tier".
+- Common GUI words use vanilla keys (`gui.back`, `gui.cancel`, `controls.reset`, `gui.recipebook.search_hint`, `gui.socialInteractions.tab_all`).
+- A pack can still override any name with `mbplacer.variants.<set>`, `mbplacer.structure.<file>` or `mbplacer.param.<name>`.
+- Browser category: the mod of the block whose id contains "controller", else of the rarest modded block.
+
 ## Decisions (from the user)
 - Fresh mod with a new id. Keep reading the mbtool NBT data.
 - ME link through a WAP only, no wireless terminal. No energy or XP cost.

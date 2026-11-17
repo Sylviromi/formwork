@@ -12,14 +12,15 @@ public final class FissionReactor implements Generator {
     private static final String G = "mekanismgenerators:";
 
     @Override public String id() { return "mbplacer:gen/mekanism_fission_reactor"; }
+    @Override public String nameKey() { return "fission.mekanismgenerators.fission_reactor"; }
     @Override public String requiredMod() { return "mekanismgenerators"; }
 
     @Override
     public List<Param> params() {
-        return List.of(Param.range("width", 3, 18, 7), Param.range("height", 4, 18, 7), Param.range("length", 3, 18, 7),
-                Param.toggle("glass", true),
+        return List.of(Param.range("width", 3, 18, 7).named("gui.mekanism.width"), Param.range("height", 4, 18, 7).named("gui.mekanism.height"), Param.range("length", 3, 18, 7),
+                Param.toggle("glass", true).named("block.mekanismgenerators.reactor_glass"),
                 new Param("fuel_layout", 0, 2, 0, List.of("checker", "spaced", "full")),
-                Param.range("ports", 0, 8, 4), Param.range("logic_adapters", 0, 4, 0));
+                Param.range("ports", 0, 8, 4).named("block.mekanismgenerators.fission_reactor_port"), Param.range("logic_adapters", 0, 4, 0).named("block.mekanismgenerators.fission_reactor_logic_adapter"));
     }
 
     @Override

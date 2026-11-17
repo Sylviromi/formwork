@@ -16,6 +16,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.fml.ModList;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.*;
 
@@ -58,25 +59,27 @@ public class BrowserScreen extends Screen {
             int[] params = c.generator(id).map(g -> g.params().stream().mapToInt(Param::def).toArray()).orElse(new int[0]);
             Map<BlockPos, BlockSpec> specs = Resolver.specs(c, new Selection(id, params, Map.of()));
             Map<BlockPos, BlockState> blocks = new LinkedHashMap<>();
-            Map<String, Integer> perMod = new HashMap<>();
             Map<BlockState, Integer> perState = new HashMap<>();
             if (specs != null) specs.forEach((p, spec) -> {
                 BlockState s = Resolver.state(spec);
                 if (s == null) return;
                 blocks.put(p, s);
-                String ns = ResourceLocation.tryParse(spec.id()).getNamespace();
-                if (!ns.equals("minecraft")) perMod.merge(ns, 1, Integer::sum);
                 perState.merge(s, 1, Integer::sum);
             });
-            String mod = perMod.entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse("minecraft");
-            String category = ModList.get().getModContainerById(mod).map(m -> m.getModInfo().getDisplayName()).orElse(PlacerItem.prettify(mod));
+            // the controller's mod, else the rarest modded block's: casings often come from decoration mods
+            String mod = perState.entrySet().stream()
+                    .sorted(Comparator.comparing((Map.Entry<BlockState, Integer> en) -> !ForgeRegistries.BLOCKS.getKey(en.getKey().getBlock()).getPath().contains("controller"))
+                            .thenComparing(Map.Entry::getValue))
+                    .map(en -> ForgeRegistries.BLOCKS.getKey(en.getKey().getBlock()).getNamespace()).filter(ns -> !ns.equals("minecraft"))
+                    .findFirst().orElse("minecraft");
+            String category = ModList.get().getModContainerById(mod).map(m -> m.getModInfo().getDisplayName()).orElse(Catalog.prettify(mod));
             String subtitle = c.generator(id).isPresent() ? Component.translatable("mbplacer.gui.any_size").getString()
                     : e.members().size() > 1 ? Component.translatable("mbplacer.gui.tiers", e.members().size()).getString()
                     : Component.translatable("mbplacer.gui.blocks", blocks.size()).getString();
             // the rarest block with an item is usually the controller
             ItemStack icon = perState.entrySet().stream().sorted(Map.Entry.comparingByValue())
                     .map(en -> new ItemStack(en.getKey().getBlock())).filter(s -> !s.is(Items.AIR)).findFirst().orElse(ItemStack.EMPTY);
-            out.add(new Info(e, PlacerItem.displayName(e.members().size() > 1 ? e.key() : id).getString(), category, subtitle, blocks, Bounds.of(blocks.keySet()), icon));
+            out.add(new Info(e, PlacerItem.entryName(e).getString(), category, subtitle, blocks, Bounds.of(blocks.keySet()), icon));
         }
         // one category per mod family: "Mekanism: Generators" joins "Mekanism"
         Set<String> names = new HashSet<>();
@@ -94,8 +97,8 @@ public class BrowserScreen extends Screen {
         y0 = 8;
         w = width - 16;
         h = height - 16;
-        search = new EditBox(font, x0 + PAD, y0 + PAD, w - 2 * PAD, 16, Component.translatable("mbplacer.gui.search"));
-        search.setHint(Component.translatable("mbplacer.gui.search").withStyle(s -> s.withColor(DIM)));
+        search = new EditBox(font, x0 + PAD, y0 + PAD, w - 2 * PAD, 16, Component.translatable("gui.recipebook.search_hint"));
+        search.setHint(Component.translatable("gui.recipebook.search_hint").withStyle(s -> s.withColor(DIM)));
         search.setValue(query);
         search.setResponder(q -> {
             query = q;
@@ -138,7 +141,7 @@ public class BrowserScreen extends Screen {
         g.fill(x0, y0, x0 + w, y0 + h, BG);
         g.renderOutline(x0, y0, w, h, BORDER);
         int cy = top();
-        button(g, font, x0 + PAD, cy, CAT_W, 16, Component.literal(Component.translatable("mbplacer.gui.all").getString() + "  " + infos().size()), category.equals(ALL), mx, my);
+        button(g, font, x0 + PAD, cy, CAT_W, 16, Component.literal(Component.translatable("gui.socialInteractions.tab_all").getString() + "  " + infos().size()), category.equals(ALL), mx, my);
         for (var c : categories.entrySet()) {
             cy += 18;
             String label = font.plainSubstrByWidth(c.getKey(), CAT_W - 26) + "  " + c.getValue();
