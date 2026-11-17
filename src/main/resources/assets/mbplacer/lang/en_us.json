@@ -10,12 +10,8 @@
   "mbplacer.msg.missing": "Missing %s (%s kinds in total)",
   "mbplacer.msg.me_changed": "The ME network changed while placing. Nothing was used, try again.",
   "mbplacer.msg.placed": "Placed %s blocks",
-  "mbplacer.msg.crafting_started": "Requested %s crafts from the ME network",
-  "mbplacer.msg.craft_missing": "Cannot craft %s: ingredients are missing",
-  "mbplacer.msg.craft_failed": "Craft of %s failed: %s",
   "mbplacer.gui.tier": "Tier %s / %s",
   "mbplacer.gui.blocks": "%s blocks",
-  "mbplacer.gui.request_crafts": "Craft missing",
   "mbplacer.gui.me.NO_AE2": "AE2 not installed",
   "mbplacer.gui.me.NOT_LINKED": "ME: not linked",
   "mbplacer.gui.me.OUT_OF_RANGE": "ME: out of range",
@@ -76,5 +72,6 @@
   "mbplacer.tooltip.placed": "On a placed multiblock: hold use to dismantle, sneak + use to edit.",
   "mbplacer.tooltip.card": "H: placement card (anchor, move, turn). Hold Ctrl to skip blocked spots.",
   "mbplacer.msg.placed_skipped": "Placed %s blocks, skipped %s in the way",
-  "mbplacer.gui.auto": "Auto"
+  "mbplacer.gui.auto": "Auto",
+  "mbplacer.gui.click_craft": "Click: craft with AE2"
 }

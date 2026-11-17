@@ -283,19 +283,11 @@ public class EditorScreen extends Screen {
         };
     }
 
-    private Line actionLine(Component label, Runnable action) {
-        return new Line() {
-            @Override public int height() { return 22; }
 
-            @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
-                Ui.button(g, font, x, y + 3, w, 16, label, false, mx, my);
-            }
-
-            @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
-                action.run();
-                return true;
-            }
-        };
+    private static List<String> reversed(List<String> l) {
+        List<String> out = new ArrayList<>(l);
+        Collections.reverse(out);
+        return out;
     }
 
     /**
@@ -309,12 +301,6 @@ public class EditorScreen extends Screen {
         List<String> shared = reversed(Catalog.sharedWords(names.stream().map(EditorScreen::reversed).toList()));
         if (shared.isEmpty()) shared = Catalog.sharedWords(names);
         return Component.literal(shared.isEmpty() ? Catalog.prettify(Catalog.shortName(set.id())) : String.join(" ", shared));
-    }
-
-    private static List<String> reversed(List<String> l) {
-        List<String> out = new ArrayList<>(l);
-        Collections.reverse(out);
-        return out;
     }
 
     private int missing() {
@@ -350,11 +336,11 @@ public class EditorScreen extends Screen {
                     out.add(text(Component.literal("..."), DIM));
                     break;
                 }
-                boolean craftable = false;
+                boolean me = ClientData.me == Materials.MeStatus.CONNECTED;
                 for (Materials.Row r : ClientData.rows) {
                     int have = (int) Math.min(Integer.MAX_VALUE, r.inventory() + Math.max(0, r.me()));
                     int color = r.missing() == 0 ? GREEN : r.craftable() ? YELLOW : RED;
-                    craftable |= r.missing() > 0 && r.craftable();
+                    boolean canCraft = me && r.missing() > 0 && r.craftable();
                     ItemStack stack = new ItemStack(r.item());
                     out.add(new Line() {
                         @Override public int height() { return 18; }
@@ -367,12 +353,17 @@ public class EditorScreen extends Screen {
                             g.drawString(font, count, x + w - font.width(count), y + 5, color, false);
                             if (in(mx, my, x, y, w, 18))
                                 setTooltipForNextRenderPass(Component.literal(stack.getHoverName().getString() + "\nInventory: " + r.inventory()
-                                        + (r.me() >= 0 ? "\nME: " + r.me() : "") + (r.craftable() ? "\nCraftable" : "")));
+                                        + (r.me() >= 0 ? "\nME: " + r.me() : "")
+                                        + (canCraft ? "\n" + Component.translatable("mbplacer.gui.click_craft").getString() : "")));
+                        }
+
+                        /** A missing, craftable row opens AE2's own craft screen for it. */
+                        @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
+                            if (canCraft) Net.CHANNEL.sendToServer(new Net.OpenCraft(r.item(), r.missing()));
+                            return canCraft;
                         }
                     });
                 }
-                if (craftable && ClientData.me == Materials.MeStatus.CONNECTED)
-                    out.add(actionLine(Component.translatable("mbplacer.gui.request_crafts"), () -> Net.CHANNEL.sendToServer(new Net.RequestCrafts())));
             }
         }
         return out;
@@ -488,7 +479,7 @@ public class EditorScreen extends Screen {
         int ky = sb - (sb - st) * shownLayers / Math.max(1, layers);
         g.fill(sx, ky - 3, sx + 10, ky + 3, draggingSlider || in(mx, my, sx - 2, st - 4, 14, sb - st + 8) ? ACCENT : BTN_ON);
         String lt = layer == 0 ? Component.translatable("mbplacer.gui.layers_all").getString() : layer + "/" + layers;
-        g.drawCenteredString(font, lt, sx + 5, sb + 6, DIM); // under the slider: the block count sits top right
+        g.drawString(font, lt, vx + vw - 4 - font.width(lt), sb + 6, DIM, false); // under the slider, kept inside the view
     }
 
     /** The block a slot has now: the player's choice, else the blueprint's. */
@@ -725,6 +716,15 @@ public class EditorScreen extends Screen {
     private void closeMesh() {
         if (mesh != null) mesh.close();
         mesh = null;
+    }
+
+    private int ticks;
+
+    /** Keeps the material report (ME status, counts) fresh while the editor stays open, e.g. when walking into ME range. */
+    @Override
+    public void tick() {
+        if (++ticks % 40 == 0)
+            Net.CHANNEL.sendToServer(editing != null ? new Net.UpdatePlaced(editing.id(), selection().save(), false) : new Net.SetSelection(selection().save()));
     }
 
     @Override

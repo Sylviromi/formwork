@@ -5,27 +5,24 @@ import appeng.api.features.GridLinkables;
 import appeng.api.features.IGridLinkableHandler;
 import appeng.api.implementations.blockentities.IWirelessAccessPoint;
 import appeng.api.networking.IGrid;
-import appeng.api.networking.crafting.CalculationStrategy;
-import appeng.api.networking.crafting.ICraftingPlan;
-import appeng.api.networking.crafting.ICraftingSimulationRequester;
 import appeng.api.networking.security.IActionSource;
+import appeng.api.networking.IGridNode;
 import appeng.api.stacks.AEItemKey;
+import appeng.core.definitions.AEItems;
+import appeng.helpers.WirelessTerminalMenuHost;
+import appeng.menu.locator.MenuLocators;
+import appeng.menu.me.crafting.CraftAmountMenu;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.nbt.NbtOps;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.event.TickEvent;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Future;
 
 /**
  * Everything that touches AE2. Only call into this class after checking that AE2 is loaded.
@@ -63,25 +60,26 @@ public final class AeLink {
     /** The linked grid if the player is inside the range of one of its active access points, else null. */
     @Nullable
     public static IGrid grid(ServerPlayer player, ItemStack tool) {
+        IGridNode node = node(player, tool);
+        return node == null ? null : node.getGrid();
+    }
+
+    /**
+     * The grid node of an access point of the linked network with the player in range, or null. The range check is AE2's own
+     * wireless terminal check, so boosters and add-ons that extend it (AEInfinityBooster's cards) apply to the tool as well.
+     */
+    @Nullable
+    public static IGridNode node(ServerPlayer player, ItemStack tool) {
         if (!isLinked(tool)) return null;
         GlobalPos pos = GlobalPos.CODEC.parse(NbtOps.INSTANCE, tool.getTag().get(TAG)).result().orElse(null);
         if (pos == null) return null;
+        // check the link first: AE2's lookup tells the player off when the network is gone, which we poll for
         ServerLevel level = player.server.getLevel(pos.dimension());
-        if (level == null || !level.isLoaded(pos.pos())) return null;
-        BlockEntity be = level.getBlockEntity(pos.pos());
-        if (!(be instanceof IWirelessAccessPoint linked) || linked.getGrid() == null) return null;
-        IGrid grid = linked.getGrid();
-        for (Class<?> c : grid.getMachineClasses()) {
-            if (!IWirelessAccessPoint.class.isAssignableFrom(c)) continue;
-            for (Object o : grid.getActiveMachines(c)) {
-                IWirelessAccessPoint wap = (IWirelessAccessPoint) o;
-                var loc = wap.getLocation();
-                if (!wap.isActive() || loc.getLevel() != player.level()) continue;
-                double range = wap.getRange();
-                if (loc.getPos().getCenter().distanceToSqr(player.position()) <= range * range) return grid;
-            }
-        }
-        return null;
+        if (level == null || !level.isLoaded(pos.pos()) || !(level.getBlockEntity(pos.pos()) instanceof IWirelessAccessPoint linked) || linked.getGrid() == null)
+            return null;
+        ItemStack terminal = AEItems.WIRELESS_TERMINAL.stack();
+        terminal.getOrCreateTag().put(TAG, tool.getTag().get(TAG).copy());
+        return new WirelessTerminalMenuHost(player, null, terminal, (p, m) -> {}).getActionableNode();
     }
 
     /** Stored amount and craftability for each item, or null when the tool has no reachable grid. */
@@ -120,14 +118,6 @@ public final class AeLink {
         return grid.getStorageService().getInventory().insert(key, stack.getCount(), Actionable.MODULATE, IActionSource.ofPlayer(player));
     }
 
-    /** Requests crafts for the given items on the tool's grid. */
-    public static boolean requestCrafts(ServerPlayer player, ItemStack tool, Map<Item, Long> missing) {
-        IGrid grid = grid(player, tool);
-        if (grid == null || missing.isEmpty()) return false;
-        requestCrafts(player, grid, missing);
-        return true;
-    }
-
     public static long stored(IGrid grid, Item item) {
         return grid.getStorageService().getCachedInventory().get(AEItemKey.of(item));
     }
@@ -140,38 +130,14 @@ public final class AeLink {
         return grid.getStorageService().getInventory().extract(AEItemKey.of(item), amount, Actionable.MODULATE, IActionSource.ofPlayer(player));
     }
 
-    private record Pending(ServerPlayer player, IGrid grid, Item item, Future<ICraftingPlan> plan) {
+    /** Opens AE2's own craft screen (amount, plan, start) for this item on the tool's grid, as a wireless terminal would. */
+    public static void openCraft(ServerPlayer player, InteractionHand hand, Item item, int amount) {
+        if (node(player, player.getItemInHand(hand)) == null) return;
+        CraftAmountMenu.open(player, MenuLocators.forHand(player, hand), AEItemKey.of(item), Math.max(1, amount));
     }
 
-    private static final List<Pending> PENDING = new ArrayList<>();
-
-    /** Starts crafting calculations; jobs are submitted from the server tick once each plan is ready. */
-    public static void requestCrafts(ServerPlayer player, IGrid grid, Map<Item, Long> missing) {
-        ICraftingSimulationRequester requester = () -> IActionSource.ofPlayer(player);
-        missing.forEach((item, amount) -> PENDING.add(new Pending(player, grid, item,
-                grid.getCraftingService().beginCraftingCalculation(player.level(), requester, AEItemKey.of(item), amount, CalculationStrategy.REPORT_MISSING_ITEMS))));
-        player.displayClientMessage(Component.translatable("mbplacer.msg.crafting_started", missing.size()), true);
-    }
-
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || PENDING.isEmpty()) return;
-        for (Iterator<Pending> it = PENDING.iterator(); it.hasNext(); ) {
-            Pending p = it.next();
-            if (!p.plan().isDone()) continue;
-            it.remove();
-            Component name = p.item().getDescription();
-            try {
-                ICraftingPlan plan = p.plan().get();
-                if (plan.simulation()) {
-                    p.player().sendSystemMessage(Component.translatable("mbplacer.msg.craft_missing", name));
-                    continue;
-                }
-                var result = p.grid().getCraftingService().submitJob(plan, null, null, false, IActionSource.ofPlayer(p.player()));
-                if (!result.successful())
-                    p.player().sendSystemMessage(Component.translatable("mbplacer.msg.craft_failed", name, String.valueOf(result.errorCode())));
-            } catch (Exception e) {
-                p.player().sendSystemMessage(Component.translatable("mbplacer.msg.craft_failed", name, e.getMessage()));
-            }
-        }
+    /** The tool as registered when AE2 is present: it can host AE2's craft screens. */
+    public static Item placerItem() {
+        return new AePlacerItem();
     }
 }

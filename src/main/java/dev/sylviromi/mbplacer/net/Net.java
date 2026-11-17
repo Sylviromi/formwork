@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 
 /** All packets. Server to client: catalog sync and material reports. Client to server: selection, report query, craft request. */
 public final class Net {
-    private static final String VERSION = "7";
+    private static final String VERSION = "8";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(MbPlacer.ID, "main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -164,7 +164,16 @@ public final class Net {
         return a != null && a.facing().getAxis().isHorizontal() ? a : new Aim(p.getDirection(), false);
     }
 
-    public record RequestCrafts() {
+    /** Open AE2's craft screen for this item (a missing material) on the tool's grid. */
+    public record OpenCraft(Item item, int amount) {
+        void write(FriendlyByteBuf b) {
+            b.writeId(net.minecraft.core.registries.BuiltInRegistries.ITEM, item);
+            b.writeVarInt(amount);
+        }
+
+        static OpenCraft read(FriendlyByteBuf b) {
+            return new OpenCraft(b.readById(net.minecraft.core.registries.BuiltInRegistries.ITEM), b.readVarInt());
+        }
     }
 
     public record Report(Materials.MeStatus me, String entry, int blocks, List<Materials.Row> rows) {
@@ -190,8 +199,8 @@ public final class Net {
                 .encoder(Report::write).decoder(Report::read).consumerMainThread(Net::onReport).add();
         CHANNEL.messageBuilder(SetSelection.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(SetSelection::write).decoder(SetSelection::read).consumerMainThread(Net::onSetSelection).add();
-        CHANNEL.messageBuilder(RequestCrafts.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .encoder((m, b) -> {}).decoder(b -> new RequestCrafts()).consumerMainThread(Net::onRequestCrafts).add();
+        CHANNEL.messageBuilder(OpenCraft.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(OpenCraft::write).decoder(OpenCraft::read).consumerMainThread(Net::onOpenCraft).add();
         CHANNEL.messageBuilder(PlacementsSync.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(PlacementsSync::write).decoder(PlacementsSync::read).consumerMainThread((m, ctx) -> { ClientData.placements = m.recs(); }).add();
         CHANNEL.messageBuilder(Progress.class, id++, NetworkDirection.PLAY_TO_CLIENT)
@@ -292,16 +301,13 @@ public final class Net {
                 new Report(Materials.meStatus(p, tool), sel.entry(), specs == null ? 0 : specs.size(), rows));
     }
 
-    private static void onRequestCrafts(RequestCrafts m, Supplier<NetworkEvent.Context> ctx) {
+    private static void onOpenCraft(OpenCraft m, Supplier<NetworkEvent.Context> ctx) {
         ServerPlayer p = ctx.get().getSender();
-        ItemStack tool = p == null ? ItemStack.EMPTY : heldTool(p);
-        if (tool.isEmpty() || !MbPlacer.AE2) return;
-        Selection sel = PlacerItem.selection(tool);
-        Map<BlockPos, BlockSpec> specs = Resolver.specs(Catalog.server, sel);
-        if (specs == null) return;
-        Map<Item, Long> missing = new LinkedHashMap<>();
-        for (Materials.Row r : Materials.report(p, tool, Materials.neededForSpecs(specs.values())))
-            if (r.missing() > 0 && r.craftable()) missing.put(r.item(), (long) r.missing());
-        AeLink.requestCrafts(p, tool, missing);
+        if (p == null || !MbPlacer.AE2 || m.item() == null) return;
+        for (InteractionHand hand : InteractionHand.values())
+            if (p.getItemInHand(hand).getItem() instanceof PlacerItem) {
+                AeLink.openCraft(p, hand, m.item(), Math.min(m.amount(), 1 << 20));
+                return;
+            }
     }
 }

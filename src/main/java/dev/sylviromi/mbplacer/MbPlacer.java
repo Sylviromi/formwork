@@ -31,7 +31,8 @@ public class MbPlacer {
     public static final boolean AE2 = ModList.get().isLoaded("ae2");
 
     private static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, ID);
-    public static final RegistryObject<Item> PLACER = ITEMS.register("placer", PlacerItem::new);
+    // with AE2 the tool can host AE2's craft screens; AeLink is only touched when AE2 is loaded
+    public static final RegistryObject<Item> PLACER = ITEMS.register("placer", () -> AE2 ? AeLink.placerItem() : new PlacerItem());
 
     public MbPlacer() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -45,7 +46,6 @@ public class MbPlacer {
         MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedInEvent e) -> { if (e.getEntity() instanceof ServerPlayer p) Net.syncPlacements(p); });
         MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerChangedDimensionEvent e) -> { if (e.getEntity() instanceof ServerPlayer p) Net.syncPlacements(p); });
         MinecraftForge.EVENT_BUS.addListener((RegisterCommandsEvent e) -> PlaceCommand.register(e.getDispatcher()));
-        if (AE2) MinecraftForge.EVENT_BUS.addListener(AeLink::onServerTick);
         MinecraftForge.EVENT_BUS.addListener(dev.sylviromi.mbplacer.build.Updater::onServerTick);
     }
 

@@ -14,6 +14,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.GlobalPos;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -94,6 +96,20 @@ public final class DevHooks {
             KeyMapping.set(mc.options.keyUse.getKey(), false);
             onServer(mc, sp -> log(sp, "after holding use"));
         });
+        // ME range: a powered access point with 8 boosters (~38 blocks with AE2's default config, 16 without)
+        step(t += 20, null, mc -> onServer(mc, DevHooks::buildAccessPoint));
+        step(t += 60, null, mc -> onServer(mc, sp -> meAt(sp, 10)));
+        step(t += 20, null, mc -> onServer(mc, sp -> meAt(sp, 30)));
+        step(t += 20, null, mc -> onServer(mc, sp -> meAt(sp, 80)));
+        // AEInfinityBooster: an infinity card in the access point instead of boosters (only if the mod is in the dev run)
+        step(t += 20, null, mc -> onServer(mc, DevHooks::infinityCard));
+        step(t += 60, null, mc -> onServer(mc, sp -> meAt(sp, 80)));
+        // AE2's own craft screen from the wand, next to the access point
+        step(t += 20, null, mc -> onServer(mc, sp -> {
+            meAt(sp, 5);
+            dev.sylviromi.mbplacer.ae2.AeLink.openCraft(sp, net.minecraft.world.InteractionHand.MAIN_HAND, net.minecraft.world.item.Items.STONE, 64);
+        }));
+        step(t += 40, "ae2_craft", null);
         step(t += 20, null, Minecraft::stop);
     }
 
@@ -189,6 +205,36 @@ public final class DevHooks {
         Selection sel = Selection.load(rec.selection());
         Updater.apply(sp, sp.getMainHandItem(), rec.id(), new Selection(sel.entry(), sel.params(), Map.of(), modifiers(ITEM, 4)));
         log(sp, "update started");
+    }
+
+    private static BlockPos wap;
+
+    private static void buildAccessPoint(ServerPlayer sp) {
+        wap = sp.blockPosition().offset(0, 0, -3);
+        var src = sp.createCommandSourceStack().withSuppressedOutput().withPermission(4);
+        var cmd = sp.server.getCommands();
+        cmd.performPrefixedCommand(src, "setblock " + wap.getX() + " " + wap.getY() + " " + wap.getZ() + " ae2:creative_energy_cell");
+        cmd.performPrefixedCommand(src, "setblock " + wap.getX() + " " + (wap.getY() + 1) + " " + wap.getZ()
+                + " ae2:wireless_access_point[facing=up]{inv:{item0:{id:\"ae2:wireless_booster\",Count:8b}}}");
+        GlobalPos at = GlobalPos.of(sp.level().dimension(), wap.above());
+        GlobalPos.CODEC.encodeStart(NbtOps.INSTANCE, at).result().ifPresent(tag -> sp.getMainHandItem().getOrCreateTag().put(PlacerItem.AE_LINK, tag));
+        MbPlacer.LOG.info("dev: access point at {} with 8 boosters, tool linked", wap.above());
+    }
+
+    private static void infinityCard(ServerPlayer sp) {
+        var src = sp.createCommandSourceStack().withSuppressedOutput().withPermission(4);
+        sp.server.getCommands().performPrefixedCommand(src, "setblock " + wap.getX() + " " + (wap.getY() + 1) + " " + wap.getZ()
+                + " ae2:wireless_access_point[facing=up]{inv:{item0:{id:\"aeinfinitybooster:infinity_card\",Count:1b}}} replace");
+        MbPlacer.LOG.info("dev: access point now holds an infinity card");
+    }
+
+    private static void meAt(ServerPlayer sp, int distance) {
+        sp.teleportTo(wap.getX() + distance + 0.5, wap.getY(), wap.getZ() + 0.5);
+        var be = sp.level().getBlockEntity(wap.above());
+        String info = be instanceof appeng.api.implementations.blockentities.IWirelessAccessPoint w
+                ? "grid " + (w.getGrid() != null) + ", active " + w.isActive() + ", range " + w.getRange()
+                + (w.getGrid() == null ? "" : ", machines " + w.getGrid().getMachineClasses()) : "not an access point: " + be;
+        MbPlacer.LOG.info("dev: ME at {} blocks: {} ({})", distance, dev.sylviromi.mbplacer.build.Materials.meStatus(sp, sp.getMainHandItem()), info);
     }
 
     private static BlockPos lastMin, lastMax;

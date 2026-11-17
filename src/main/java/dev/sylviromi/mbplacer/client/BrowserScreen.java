@@ -45,7 +45,7 @@ public class BrowserScreen extends Screen {
     private Map<String, Integer> categories = Map.of();
     private int x0, y0, w, h;
     /** Kept between visits, like the search and category. */
-    private static int scroll;
+    private static int scroll, catScroll;
 
     public BrowserScreen() {
         super(Component.translatable("item.mbplacer.placer"));
@@ -141,13 +141,18 @@ public class BrowserScreen extends Screen {
         renderBackground(g);
         g.fill(x0, y0, x0 + w, y0 + h, BG);
         g.renderOutline(x0, y0, w, h, BORDER);
-        int cy = top();
-        button(g, font, x0 + PAD, cy, CAT_W, 16, Component.literal(Component.translatable("gui.socialInteractions.tab_all").getString() + "  " + infos().size()), category.equals(ALL), mx, my);
-        for (var c : categories.entrySet()) {
-            cy += 18;
-            String label = font.plainSubstrByWidth(c.getKey(), CAT_W - 26) + "  " + c.getValue();
-            button(g, font, x0 + PAD, cy, CAT_W, 16, Component.literal(label), category.equals(c.getKey()), mx, my);
+        // categories scroll on their own when they don't fit
+        g.enableScissor(x0 + PAD, top(), x0 + PAD + CAT_W, bottom());
+        List<String> cats = catList();
+        for (int i = 0; i < cats.size(); i++) {
+            String c = cats.get(i);
+            String name = c.equals(ALL) ? Component.translatable("gui.socialInteractions.tab_all").getString() : c;
+            String count = " (" + (c.equals(ALL) ? infos().size() : categories.get(c)) + ")";
+            String label = font.plainSubstrByWidth(name, CAT_W - 8 - font.width(count)) + count;
+            boolean over = my >= top() && my < bottom();
+            button(g, font, x0 + PAD, top() + i * 18 - catScroll, CAT_W, 16, Component.literal(label), category.equals(c), mx, over ? my : -1000);
         }
+        g.disableScissor();
         renderCards(g, mx, my);
         super.render(g, mx, my, partial);
     }
@@ -201,12 +206,10 @@ public class BrowserScreen extends Screen {
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
         if (super.mouseClicked(mx, my, button)) return true;
-        int cy = top();
-        if (in(mx, my, x0 + PAD, cy, CAT_W, 16)) return pick(ALL);
-        for (String c : categories.keySet()) {
-            cy += 18;
-            if (in(mx, my, x0 + PAD, cy, CAT_W, 16)) return pick(c);
-        }
+        List<String> cats = catList();
+        if (my >= top() && my < bottom())
+            for (int i = 0; i < cats.size(); i++)
+                if (in(mx, my, x0 + PAD, top() + i * 18 - catScroll, CAT_W, 16)) return pick(cats.get(i));
         int cw = cardW(), cols = cols();
         if (in(mx, my, gridX(), top(), gridW(), bottom() - top())) {
             int col = (int) ((mx - gridX()) / (cw + GAP)), row = (int) ((my - top() + scroll) / (CARD_H + GAP));
@@ -233,8 +236,16 @@ public class BrowserScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
-        scroll = (int) Math.max(0, Math.min(maxScroll(), scroll - delta * (CARD_H + GAP) / 2));
+        if (mx < gridX()) catScroll = (int) Math.max(0, Math.min(catList().size() * 18 - (bottom() - top()), catScroll - delta * 18 * 2));
+        else scroll = (int) Math.max(0, Math.min(maxScroll(), scroll - delta * (CARD_H + GAP) / 2));
         return true;
+    }
+
+    /** "All" first, then the mod categories. */
+    private List<String> catList() {
+        List<String> out = new ArrayList<>(List.of(ALL));
+        out.addAll(categories.keySet());
+        return out;
     }
 
     @Override

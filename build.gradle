@@ -38,7 +38,7 @@ repositories {
 
 // Pack jars that are not on any maven, renamed to <id>-1.jar. Run `./gradlew copyPackMods` once.
 def packJars = ['voidminers': 'voidminers-', 'mangomultiblock': 'mangomultiblock-', 'mm': 'MasterfulMachinery-', 'guideme': 'guideme-',
-                'kubejs': 'kubejs-forge-', 'rhino': 'rhino-forge-', 'architectury': 'architectury-'] // KubeJS registers the pack's MM ports and controllers
+                'kubejs': 'kubejs-forge-', 'rhino': 'rhino-forge-', 'architectury': 'architectury-', 'aeinfinitybooster': 'AEInfinityBooster-'] // KubeJS registers the pack's MM ports and controllers
 
 tasks.register('copyPackMods', Copy) {
     from(pack_mods) { packJars.each { id, prefix -> include "${prefix}*.jar" } }
@@ -49,7 +49,7 @@ tasks.register('copyPackMods', Copy) {
 dependencies {
     minecraft "net.minecraftforge:forge:${mc_version}-${forge_version}"
 
-    compileOnly fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}:api")
+    compileOnly fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}") // full jar: the craft screens (CraftAmountMenu, MenuLocators) are not in the api
     runtimeOnly fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}")
     runtimeOnly fg.deobf("mezz.jei:jei-${mc_version}-forge:${jei_version}")
     runtimeOnly fg.deobf("mekanism:Mekanism:${mc_version}-${mekanism_version}")
