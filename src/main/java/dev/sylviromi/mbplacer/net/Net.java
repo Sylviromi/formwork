@@ -134,15 +134,15 @@ public final class Net {
         }
     }
 
-    /** How far a timed update of a placement is (0..1), sent every server tick so the HUD bar matches the blocks; 1 = done. */
-    public record Progress(UUID placement, float done) {
+    /** An update of a placement waits this many ticks before it happens; 0 = it happened or was cancelled. */
+    public record Progress(UUID placement, int ticks) {
         void write(FriendlyByteBuf b) {
             b.writeUUID(placement);
-            b.writeFloat(done);
+            b.writeVarInt(ticks);
         }
 
         static Progress read(FriendlyByteBuf b) {
-            return new Progress(b.readUUID(), b.readFloat());
+            return new Progress(b.readUUID(), b.readVarInt());
         }
     }
 
@@ -227,8 +227,9 @@ public final class Net {
                 .encoder(PlacementsSync::write).decoder(PlacementsSync::read).consumerMainThread((m, ctx) -> { ClientData.placements = m.recs(); }).add();
         CHANNEL.messageBuilder(Progress.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(Progress::write).decoder(Progress::read).consumerMainThread((m, ctx) -> {
-                    ClientData.progressFor = m.done() >= 1 ? null : m.placement();
-                    ClientData.progress = m.done();
+                    ClientData.progressFor = m.ticks() == 0 ? null : m.placement();
+                    ClientData.progressStart = System.currentTimeMillis();
+                    ClientData.progressMillis = m.ticks() * 50L;
                 }).add();
         CHANNEL.messageBuilder(Aim.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(Aim::write).decoder(Aim::read).consumerMainThread((m, ctx) -> {

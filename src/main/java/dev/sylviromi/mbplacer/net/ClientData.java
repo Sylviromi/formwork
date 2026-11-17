@@ -15,7 +15,7 @@ public final class ClientData {
     public static List<Placements.Rec> placements = List.of();
     /** The running timed update (see Updater): which placement, when it started, how long it takes. */
     public static java.util.UUID progressFor;
-    public static float progress;
+    public static long progressStart, progressMillis;
 
     private ClientData() {
     }

@@ -3,6 +3,7 @@ package dev.sylviromi.mbplacer.item;
 import dev.sylviromi.mbplacer.build.Dismantler;
 import dev.sylviromi.mbplacer.build.Placements;
 import dev.sylviromi.mbplacer.build.Placer;
+import dev.sylviromi.mbplacer.build.Updater;
 import dev.sylviromi.mbplacer.build.Resolver;
 import dev.sylviromi.mbplacer.net.ClientData;
 import dev.sylviromi.mbplacer.net.Net;
@@ -206,6 +207,9 @@ public class PlacerItem extends Item {
             if (level.isClientSide) openScreen();
             return InteractionResultHolder.sidedSuccess(tool, level.isClientSide);
         }
+        // an update is waiting: use cancels it
+        if (level.isClientSide ? ClientData.progressFor != null : Updater.cancel((ServerPlayer) player))
+            return InteractionResultHolder.sidedSuccess(tool, level.isClientSide);
         // pointing at a placed multiblock: hold to dismantle it
         if (placementLookedAt(player) != null) {
             player.startUsingItem(hand);
@@ -226,6 +230,7 @@ public class PlacerItem extends Item {
             return InteractionResult.sidedSuccess(ctx.getLevel().isClientSide);
         }
         if (placementLookedAt(player) != null) return InteractionResult.PASS; // use() handles it: hold to dismantle
+        if (ctx.getLevel().isClientSide ? ClientData.progressFor != null : Updater.waiting((ServerPlayer) player)) return InteractionResult.PASS; // use() cancels the update
         if (player instanceof ServerPlayer sp)
             act(sp, ctx.getItemInHand());
         return InteractionResult.sidedSuccess(ctx.getLevel().isClientSide);

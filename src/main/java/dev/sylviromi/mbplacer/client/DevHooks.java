@@ -103,6 +103,10 @@ public final class DevHooks {
         step(t += 10, null, mc -> onServer(mc, DevHooks::updateLooked));
         step(t += 15, "updating", null);
         step(t += 110, null, mc -> onServer(mc, sp -> log(sp, "after update")));
+        // a second update, cancelled during the wait: nothing changes
+        step(t += 5, null, mc -> onServer(mc, DevHooks::updateLooked));
+        step(t += 10, null, mc -> onServer(mc, sp -> MbPlacer.LOG.info("dev: cancel: {}", Updater.cancel(sp))));
+        step(t += 50, null, mc -> onServer(mc, sp -> log(sp, "after cancelled update")));
         step(t += 10, null, mc -> KeyMapping.set(mc.options.keyUse.getKey(), true));
         step(t += 30, "dismantle_hold", null);
         step(t += 90, null, mc -> {

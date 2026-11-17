@@ -58,87 +58,114 @@ public final class Updater {
         return Materials.report(player, tool, Materials.needed(plan.place().values()));
     }
 
+    /** Starts an update: checked now, carried out all at once after the same wait as a dismantle; use with the tool cancels it. */
     public static void apply(ServerPlayer player, ItemStack tool, UUID recId, Selection sel) {
+        if (JOBS.stream().anyMatch(j -> j.rec().id().equals(recId) || j.player() == player)) return; // already waiting
+        Placements.Rec rec = Placements.of(player.serverLevel()).all().stream().filter(r -> r.id().equals(recId)).findFirst().orElse(null);
+        if (check(player, tool, rec, sel) == null) return;
+        int ticks = Placements.dismantleTicks(rec);
+        JOBS.add(new Job(player, tool, player.serverLevel(), rec, sel, ticks, new int[1]));
+        progress(player, rec.id(), ticks);
+        player.displayClientMessage(Component.translatable("mbplacer.msg.update_waiting"), true);
+    }
+
+    public static boolean waiting(ServerPlayer player) {
+        return JOBS.stream().anyMatch(j -> j.player() == player);
+    }
+
+    /** Cancels the player's waiting update; false if there is none. */
+    public static boolean cancel(ServerPlayer player) {
+        for (Iterator<Job> it = JOBS.iterator(); it.hasNext(); ) {
+            Job j = it.next();
+            if (j.player() != player) continue;
+            it.remove();
+            progress(player, j.rec().id(), 0);
+            player.displayClientMessage(Component.translatable("mbplacer.msg.update_cancelled"), true);
+            return true;
+        }
+        return false;
+    }
+
+    /** The plan if the update can go ahead now (in reach, not blocked, materials there), else null after telling the player why. */
+    @Nullable
+    private static Plan check(ServerPlayer player, ItemStack tool, @Nullable Placements.Rec rec, Selection sel) {
         ServerLevel level = player.serverLevel();
-        Placements placements = Placements.of(level);
-        Placements.Rec rec = placements.all().stream().filter(r -> r.id().equals(recId)).findFirst().orElse(null);
-        if (JOBS.stream().anyMatch(j -> j.rec().id().equals(recId))) return; // already being updated
-        if (rec == null || !rec.box().getCenter().closerThan(player.blockPosition(), 64)) {
+        if (rec == null || !Placements.of(level).all().contains(rec) || !rec.box().getCenter().closerThan(player.blockPosition(), 64)) {
             fail(player, "mbplacer.msg.not_placed");
-            return;
+            return null;
         }
         Plan plan = plan(level, rec, sel);
         if (plan == null) {
             fail(player, "mbplacer.msg.invalid_selection");
-            return;
+            return null;
         }
         for (var e : plan.remove().entrySet())
             if (!Dismantler.canTake(player, level, e.getKey(), e.getValue())) {
                 fail(player, "mbplacer.msg.blocked", e.getKey().getX(), e.getKey().getY(), e.getKey().getZ());
-                return;
+                return null;
             }
         for (BlockPos pos : plan.place().keySet()) {
             boolean free = plan.remove().containsKey(pos) || level.getBlockState(pos).canBeReplaced();
             if (!free || !level.isLoaded(pos) || !level.mayInteract(player, pos)
                     || ForgeEventFactory.onBlockPlace(player, BlockSnapshot.create(level.dimension(), level, pos), Direction.UP)) {
                 fail(player, "mbplacer.msg.blocked", pos.getX(), pos.getY(), pos.getZ());
-                return;
+                return null;
             }
         }
         if (!player.isCreative()) {
-            List<Materials.Row> rows = report(player, tool, plan);
-            List<Materials.Row> missing = rows.stream().filter(r -> r.missing() > 0).toList();
+            List<Materials.Row> missing = report(player, tool, plan).stream().filter(r -> r.missing() > 0).toList();
             if (!missing.isEmpty()) {
                 fail(player, "mbplacer.msg.missing", missing.stream().limit(3).map(r -> r.missing() + "x " + r.item().getDescription().getString())
                         .collect(Collectors.joining(", ")), missing.size());
-                return;
-            }
-            if (!Materials.take(player, tool, rows)) {
-                fail(player, "mbplacer.msg.me_changed");
-                return;
+                return null;
             }
         }
-        // everything is checked and paid for: swap the blocks bottom-up over a few seconds (see onServerTick)
-        TreeSet<BlockPos> order = new TreeSet<>(Comparator.comparingInt((BlockPos p) -> p.getY()).thenComparingLong(BlockPos::asLong));
-        order.addAll(plan.remove().keySet());
-        order.addAll(plan.place().keySet());
-        int ticks = Placements.dismantleTicks(rec);
-        JOBS.add(new Job(player, tool, level, rec, sel, plan, new ArrayList<>(order), new ArrayList<>(), ticks, new int[2]));
-        Net.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new Net.Progress(rec.id(), 0));
+        return plan;
     }
 
-    /** A running update. done[0]: positions handled, done[1]: ticks elapsed. */
-    private record Job(ServerPlayer player, ItemStack tool, ServerLevel level, Placements.Rec rec, Selection sel, Plan plan,
-                       List<BlockPos> order, List<ItemStack> drops, int ticks, int[] done) {
+    /** Checks again, pays, and swaps every changed block at once. */
+    private static void perform(Job j) {
+        ServerPlayer player = j.player();
+        Plan plan = check(player, j.tool(), j.rec(), j.sel());
+        if (plan == null) return;
+        if (!player.isCreative() && !Materials.take(player, j.tool(), report(player, j.tool(), plan))) {
+            fail(player, "mbplacer.msg.me_changed");
+            return;
+        }
+        List<ItemStack> drops = new ArrayList<>();
+        plan.remove().forEach((pos, was) -> {
+            if (j.level().getBlockState(pos).getBlock() == was.getBlock()) Dismantler.take(player, j.level(), pos, was, drops);
+        });
+        Placer.put(j.level(), plan.place(), player);
+        Dismantler.giveBack(player, j.tool(), drops);
+        Placements placements = Placements.of(j.level());
+        placements.remove(j.level(), j.rec().id());
+        placements.add(j.level(), Placements.record(plan.all(), j.sel().save(), j.rec().target(), j.rec().facing(), j.rec().owner()));
+        player.displayClientMessage(Component.translatable("mbplacer.msg.updated", plan.remove().size(), plan.place().size()), true);
+    }
+
+    private static void progress(ServerPlayer player, UUID rec, int ticks) {
+        if (!player.hasDisconnected()) Net.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new Net.Progress(rec, ticks));
+    }
+
+    /** An update waiting to happen. waited[0]: ticks so far. */
+    private record Job(ServerPlayer player, ItemStack tool, ServerLevel level, Placements.Rec rec, Selection sel, int ticks, int[] waited) {
     }
 
     private static final List<Job> JOBS = new ArrayList<>();
 
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || JOBS.isEmpty()) return;
-        for (Iterator<Job> it = JOBS.iterator(); it.hasNext(); ) {
+        for (Iterator<Job> it = new ArrayList<>(JOBS).iterator(); it.hasNext(); ) {
             Job j = it.next();
-            int t = ++j.done()[1];
-            int until = (int) Math.ceil(j.order().size() * Math.min(1.0, (double) t / j.ticks()));
-            for (; j.done()[0] < until; j.done()[0]++) {
-                BlockPos pos = j.order().get(j.done()[0]);
-                if (!j.level().isLoaded(pos)) continue;
-                BlockState was = j.plan().remove().get(pos);
-                if (was != null && j.level().getBlockState(pos).getBlock() == was.getBlock()) Dismantler.take(j.player(), j.level(), pos, was, j.drops());
-                Resolver.Placed want = j.plan().place().get(pos);
-                if (want != null) Placer.put(j.level(), Map.of(pos, want), j.player());
+            if (j.player().hasDisconnected()) {
+                JOBS.remove(j);
+                continue;
             }
-            if (!j.player().hasDisconnected())
-                Net.CHANNEL.send(PacketDistributor.PLAYER.with(j::player), new Net.Progress(j.rec().id(), Math.min(0.99f, (float) j.done()[0] / j.order().size())));
-            if (j.done()[0] < j.order().size()) continue;
-            it.remove();
-            if (j.player().hasDisconnected()) j.drops().forEach(s -> Block.popResource(j.level(), j.rec().target(), s));
-            else Dismantler.giveBack(j.player(), j.tool(), j.drops());
-            Placements placements = Placements.of(j.level());
-            placements.remove(j.level(), j.rec().id());
-            placements.add(j.level(), Placements.record(j.plan().all(), j.sel().save(), j.rec().target(), j.rec().facing(), j.rec().owner()));
-            if (!j.player().hasDisconnected()) Net.CHANNEL.send(PacketDistributor.PLAYER.with(j::player), new Net.Progress(j.rec().id(), 1));
-            j.player().displayClientMessage(Component.translatable("mbplacer.msg.updated", j.plan().remove().size(), j.plan().place().size()), true);
+            if (++j.waited()[0] < j.ticks()) continue;
+            JOBS.remove(j);
+            perform(j);
+            progress(j.player(), j.rec().id(), 0);
         }
     }
 

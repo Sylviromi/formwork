@@ -35,7 +35,9 @@ final class Hud {
     /** A running in-place update (server job): its name and progress. */
     private static void updating(GuiGraphics g, Minecraft mc) {
         Placements.Rec rec = ClientData.placements.stream().filter(r -> r.id().equals(ClientData.progressFor)).findFirst().orElse(null);
-        label(g, mc, rec == null ? Component.empty() : PlacerItem.displayName(Selection.load(rec.selection()).entry()), ACCENT, Math.max(0.01f, ClientData.progress), ACCENT);
+        // full only once the server says it happened (Progress 0 hides the bar)
+        float progress = Math.min(0.98f, Math.max(0.01f, (float) (System.currentTimeMillis() - ClientData.progressStart) / ClientData.progressMillis));
+        label(g, mc, rec == null ? Component.empty() : PlacerItem.displayName(Selection.load(rec.selection()).entry()), ACCENT, progress, ACCENT);
     }
 
     /** The name under the crosshair, like vanilla's subtitle text, with a thin bar under it while something runs. */
