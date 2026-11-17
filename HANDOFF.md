@@ -36,9 +36,25 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
   - `Placer`: server placement.
 - `ae2/AeLink`: the only class touching AE2. It handles link, range check, snapshot, all-or-nothing take, and craft requests ticked on the server.
 - `net/Net`: packets for catalog sync, SetSelection, Report and RequestCrafts. `ClientData` holds the last report.
-- `client/`: `ClientHooks`, plus `PlacerScreen` and the world ghost, both TODO.
+- `build/Dismantler`: removes the selected structure's blocks at the placement and returns drops (ME, then inventory, then floor).
+- `client/`:
+  - `ClientHooks`: key bindings (G anchor, H placement panel) and placement edits.
+  - `PlacerScreen`: the picker.
+  - `PlacementScreen`: see-through panel for anchor, offset, rotation and mode.
+  - `StructureMesh`: one VertexBuffer per chunk layer, built once per change. Used by the preview and the ghost.
+  - `WorldGhost`.
+- Placement settings live in the tool nbt (`anchor`, `anchorFacing`, `offset`, `rotation`, `dismantle`). `PlacerItem.placement()` turns them into target + facing on both sides. The server clamps offsets to 64 and refuses anchors or targets more than 128 blocks away.
 
-## Status (updated 2026-11-17)
+## Status (updated 2026-11-17, v0.2.0)
+- [x] v0.2.0:
+  - preview depth fixed (the Z scale was negative, so back faces drew)
+  - preview fits its panel and the layout scales with the screen
+  - preview and ghost use a cached mesh (no per-frame tessellation)
+  - anchor/offset/rotate panel
+  - dismantle mode
+  - turbine rotors placed with 2 blades each, and blades count as materials (verified headless: rotors keep `blades: 2`, turbine forms)
+- [ ] **Dismantle, anchor and placement panel are untested in game** (only screenshots of the panel). Test: anchor with G, nudge with H, place; switch to dismantle and remove it.
+- [ ] Preview does not draw block entity renderers, so turbine blades show only in the world, not in the picker.
 - [x] Gradle build, 12 JUnit tests pass (`./gradlew test`).
 - [x] Structure layer, generators, resolver, materials, placer, AE2 link, network, item, resources.
 - [x] `PlacerScreen`:
@@ -70,14 +86,12 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
   - placement takes from ME
   - Craft missing starts jobs
 - [ ] **Masterful Machinery port variants are untested.** MM port blocks only exist with the pack's MM configs, so test in the pack.
-- [ ] Pack integration:
-  - copy `build/libs/mbplacer-1.20.1-0.1.0.jar` to the pack's mods folder and remove `MultiBuilderTool-1.20.1-1.0.28.jar`
-  - update `kubejs/client_scripts/tooltips.js` (around line 281) and `kubejs/server_scripts/scripts/world_interaction_scripts/creative_bin_blacklist.js` (line 182), which reference `mbtool:mbtool`
-  - update the quests that mention mbtool (`config/ftbquests/.../tips_and_tricks.snbt`)
-  - optionally add `mbplacer.structure.<file>` or `mbplacer.group` names. Existing `mbtool.structure.*` lang keys are reused.
+- [x] Pack integration (pack: `/data/games/PrismLauncher/instances/Project Infinity 0.1/minecraft`). Backups of every edited file: `../mbplacer-migration-backup.tar.gz` and `../mbplacer-migration-backup-lang.tar.gz` (both in the instance folder).
+  - `mods/mbplacer-1.20.1-0.2.0.jar` added; old jar renamed to `MultiBuilderTool-1.20.1-1.0.28.jar.disabled`
+  - the 73 structures that only shipped inside the old jar were copied to `kubejs/data/mbtool/mbtool_structures/`, and their names merged into `kubejs/assets/mbtool/lang/*.json`
+  - tooltips.js, creative_bin_blacklist.js (entry removed, the tool has no inventory), guide `multibuilder_tool.md`, the tips_and_tricks quest reward, and the quest text now point at `mbplacer:placer`
+  - es_es/ru_ru `tooltip.mbtool.usage_2` still describe the old shift+scroll rotation
 - [ ] Nice to have:
-  - mesh cache for the preview if large structures lag
-  - manual rotation key
   - nicer icons in the list
   - JEI integration
 - [ ] Later, as a separate task: a learning scaffold so the user can rewrite the mod themselves.
@@ -90,12 +104,12 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
 - Fresh mod with a new id. Keep reading the mbtool NBT data.
 - ME link through a WAP only, no wireless terminal. No energy or XP cost.
 - v1 covers void miners and solar, Mekanism sizable multiblocks, all pack NBTs, and Masterful Machinery port tiers.
-- Out of v1: dismantle, JEI category, KubeJS event, GregTech, NuclearCraft import, Curios, undo.
+- Out of v1: JEI category, KubeJS event, GregTech, NuclearCraft import, Curios, undo.
 - Variant sets can carry `"match": "<substring of the structure file name>"`. It is used because the null modifier is in both the void miner and solar sets.
 - Variant choice is by count per set ("4 speed, 4 energy, rest null") instead of clicking single positions. This deviates from the plan and is simpler UI.
-- Rotation follows the player's facing. The structure starts at the clicked block and extends away from the player, centred sideways. There is no manual rotate key.
-- Turbine rotors are placed without blades. The player inserts the blades.
+- Rotation follows the player's facing. The structure starts at the clicked block and extends away from the player, centred sideways. The placement panel adds rotation and offset; anchoring folds them into the anchor.
+- Dismantle only removes blocks whose block matches the blueprint at that position; everything else is left alone. Creative players get no drops.
+- Turbine rotors are placed with 2 blades each (Mekanism sums rotor `blades` when the turbine forms). Blades are charged as materials.
 
 ## Known risks
 - Mekanism rules are unverified in game.
-- The preview renders blocks every frame with no mesh cache. If big structures lag, add a VertexBuffer cache, porting `client/render/StructureMesh.java` from the old repo.
