@@ -61,6 +61,14 @@ class GeneratorTest {
     }
 
     @Test
+    void turbineAutoFillsRotorsAndCoils() {
+        // size 5, height 9, rotors auto, coils auto: 5 rotors fit (height - 4), 10 blades need 3 coils at 4 blades each
+        var m = new IndustrialTurbine().build(new int[]{0, 9, 0, 0, 1, 0});
+        assertEquals(5, count(m, "mekanismgenerators:turbine_rotor"));
+        assertEquals(3, count(m, "mekanismgenerators:electromagnetic_coil"));
+    }
+
+    @Test
     void boilerHasFullDisperserLayer() {
         var m = new ThermoelectricBoiler().build(new int[]{5, 7, 5, 3, 1, 1});
         assertEquals(9, count(m, "mekanism:pressure_disperser"));

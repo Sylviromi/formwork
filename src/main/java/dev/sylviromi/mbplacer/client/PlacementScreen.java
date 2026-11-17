@@ -81,13 +81,13 @@ public class PlacementScreen extends Screen {
     private static void face(Direction d) {
         edit(t -> {
             Direction base = t.contains(PlacerItem.ANCHOR) ? Direction.from2DDataValue(t.getInt(PlacerItem.ANCHOR_FACING))
-                    : net.minecraft.client.Minecraft.getInstance().player.getDirection();
+                    : ClientHooks.facing;
             t.putInt(PlacerItem.ROTATION, dev.sylviromi.mbplacer.build.Resolver.turnsTo(base, d));
         });
     }
 
     private Direction look() {
-        return minecraft.player.getDirection();
+        return ClientHooks.facing;
     }
 
     @Override

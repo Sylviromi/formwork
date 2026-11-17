@@ -500,7 +500,6 @@ public class EditorScreen extends Screen {
     private void select(BlockPos pos) {
         selectedSlot = pos;
         if (tabs.contains(Tab.VARIANTS)) tab = Tab.VARIANTS;
-        sideScroll = 0;
         lines = buildLines();
     }
 

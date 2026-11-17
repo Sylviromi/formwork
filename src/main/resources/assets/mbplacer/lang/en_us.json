@@ -50,7 +50,6 @@
   "mbplacer.gui.tab.materials": "Materials",
   "mbplacer.gui.spin": "Spin",
   "mbplacer.gui.layers_all": "all",
-  "mbplacer.gui.any_size": "any size",
   "mbplacer.gui.tiers": "%s tiers",
   "mbplacer.gui.nothing_found": "Nothing found",
   "mbplacer.gui.face": "Face %s (R turns)",
@@ -75,5 +74,7 @@
   "mbplacer.gui.all_like_tip": "Use this block for every block of this kind",
   "mbplacer.gui.other": "Other",
   "mbplacer.tooltip.placed": "On a placed multiblock: hold use to dismantle, sneak + use to edit.",
-  "mbplacer.tooltip.card": "H: placement card (anchor, move, turn)."
+  "mbplacer.tooltip.card": "H: placement card (anchor, move, turn). Hold Ctrl to skip blocked spots.",
+  "mbplacer.msg.placed_skipped": "Placed %s blocks, skipped %s in the way",
+  "mbplacer.gui.auto": "Auto"
 }

@@ -13,6 +13,7 @@ import dev.sylviromi.mbplacer.structure.Catalog;
 import dev.sylviromi.mbplacer.structure.Selection;
 import dev.sylviromi.mbplacer.structure.VariantSet;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -32,7 +33,7 @@ import java.util.function.Supplier;
 
 /** All packets. Server to client: catalog sync and material reports. Client to server: selection, report query, craft request. */
 public final class Net {
-    private static final String VERSION = "6";
+    private static final String VERSION = "7";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(MbPlacer.ID, "main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -143,6 +144,26 @@ public final class Net {
         }
     }
 
+    /** The facing the client's ghost uses (with a dead zone at the diagonals) and whether Ctrl skips blocked spots. */
+    public record Aim(Direction facing, boolean skipBlocked) {
+        void write(FriendlyByteBuf b) {
+            b.writeEnum(facing);
+            b.writeBoolean(skipBlocked);
+        }
+
+        static Aim read(FriendlyByteBuf b) {
+            return new Aim(b.readEnum(Direction.class), b.readBoolean());
+        }
+    }
+
+    private static final Map<UUID, Aim> AIMS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** What this player's client last reported, or their plain facing. */
+    public static Aim aim(ServerPlayer p) {
+        Aim a = AIMS.get(p.getUUID());
+        return a != null && a.facing().getAxis().isHorizontal() ? a : new Aim(p.getDirection(), false);
+    }
+
     public record RequestCrafts() {
     }
 
@@ -178,6 +199,10 @@ public final class Net {
                     ClientData.progressFor = m.placement();
                     ClientData.progressStart = System.currentTimeMillis();
                     ClientData.progressMillis = m.ticks() * 50L;
+                }).add();
+        CHANNEL.messageBuilder(Aim.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(Aim::write).decoder(Aim::read).consumerMainThread((m, ctx) -> {
+                    if (ctx.get().getSender() != null) AIMS.put(ctx.get().getSender().getUUID(), m);
                 }).add();
         CHANNEL.messageBuilder(UpdatePlaced.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(UpdatePlaced::write).decoder(UpdatePlaced::read).consumerMainThread(Net::onUpdatePlaced).add();

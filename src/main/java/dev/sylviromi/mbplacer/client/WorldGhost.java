@@ -88,8 +88,9 @@ public final class WorldGhost {
         mesh.drawGhost(ps.last().pose(), event.getProjectionMatrix(), 0.6f, 0.9f, 1f, pulse);
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
         var lines = buffers.getBuffer(RenderType.lines());
-        // red boxes where something is in the way
-        for (BlockPos p : marked) LevelRenderer.renderLineBox(ps, lines, new AABB(p).deflate(0.02), 1f, 0.3f, 0.3f, 1f);
+        // red boxes where something is in the way; grey while Ctrl is held: those spots get skipped
+        float mr = ClientHooks.skipBlocked ? 0.6f : 1f, mg = ClientHooks.skipBlocked ? 0.6f : 0.3f, mb = ClientHooks.skipBlocked ? 0.6f : 0.3f;
+        for (BlockPos p : marked) LevelRenderer.renderLineBox(ps, lines, new AABB(p).deflate(0.02), mr, mg, mb, 1f);
         if (anchored) LevelRenderer.renderLineBox(ps, lines, relBox.inflate(0.01), 1f, 0.8f, 0.25f, 1f);
         else LevelRenderer.renderLineBox(ps, lines, relBox.inflate(0.01), 0.35f, 0.85f, 1f, 1f);
         buffers.endBatch(RenderType.lines());

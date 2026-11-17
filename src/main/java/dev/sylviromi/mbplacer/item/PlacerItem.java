@@ -5,6 +5,7 @@ import dev.sylviromi.mbplacer.build.Placements;
 import dev.sylviromi.mbplacer.build.Placer;
 import dev.sylviromi.mbplacer.build.Resolver;
 import dev.sylviromi.mbplacer.net.ClientData;
+import dev.sylviromi.mbplacer.net.Net;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.UseAnim;
@@ -150,13 +151,14 @@ public class PlacerItem extends Item {
             player.displayClientMessage(Component.translatable("mbplacer.msg.nothing_selected").withStyle(ChatFormatting.RED), true);
             return;
         }
-        Placement p = placement(tool, player.level(), aim(player, 1), player.getDirection(), Resolver.Footprint.of(specs.keySet()));
+        Net.Aim a = Net.aim(player); // the facing the client's ghost showed, and whether Ctrl was held
+        Placement p = placement(tool, player.level(), aim(player, 1), a.facing(), Resolver.Footprint.of(specs.keySet()));
         if (p == null) return;
         if (!p.target().closerThan(player.blockPosition(), MAX_ANCHOR_DISTANCE)) {
             player.displayClientMessage(Component.translatable("mbplacer.msg.too_far").withStyle(ChatFormatting.RED), true);
             return;
         }
-        Placer.place(player, tool, p.target(), p.facing());
+        Placer.place(player, tool, p.target(), p.facing(), a.skipBlocked());
     }
 
     // ---- dismantle: hold use on a placed multiblock, like breaking a block ----
@@ -192,6 +194,8 @@ public class PlacerItem extends Item {
         if (getUseDuration(stack) - remaining >= Placements.dismantleTicks(rec)) {
             Dismantler.dismantle(sp, stack, rec);
             sp.stopUsingItem();
+            // the use key is usually still down: don't let it place something right away (the client also waits for release)
+            sp.getCooldowns().addCooldown(this, 10);
         }
     }
 

@@ -10,6 +10,7 @@ import dev.sylviromi.mbplacer.structure.Catalog;
 import dev.sylviromi.mbplacer.structure.Selection;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
@@ -75,6 +76,7 @@ public final class ClientHooks {
         if (dismantling && !using) holdLock = true;
         dismantling = using;
         if (holdLock && !mc.options.keyUse.isDown()) holdLock = false;
+        updateAim(mc);
         if (mc.screen != null) return;
         ItemStack tool = WorldGhost.heldTool();
         while (PLACEMENT.consumeClick()) if (!tool.isEmpty()) mc.setScreen(new PlacementScreen());
@@ -82,6 +84,25 @@ public final class ClientHooks {
 
     private static String footprintKey = "";
     private static Resolver.Footprint footprint;
+
+    /** The facing used for placing: follows the view, but only switches once clearly past a diagonal (no flicker at 45 degrees). */
+    static Direction facing = Direction.NORTH;
+    /** Ctrl held: blocked spots are skipped when placing. */
+    static boolean skipBlocked;
+    private static Net.Aim sent;
+
+    private static void updateAim(Minecraft mc) {
+        float yaw = mc.player.getYRot();
+        float off = Math.abs(net.minecraft.util.Mth.wrapDegrees(yaw - facing.toYRot()));
+        if (off > 55) facing = Direction.fromYRot(yaw);
+        long window = mc.getWindow().getWindow();
+        skipBlocked = InputConstants.isKeyDown(window, GLFW.GLFW_KEY_LEFT_CONTROL) || InputConstants.isKeyDown(window, GLFW.GLFW_KEY_RIGHT_CONTROL);
+        Net.Aim now = new Net.Aim(facing, skipBlocked);
+        if (!now.equals(sent) && !WorldGhost.heldTool().isEmpty()) {
+            sent = now;
+            Net.CHANNEL.sendToServer(now);
+        }
+    }
 
     /** Where the held tool would place right now (aiming with the long placement ray), or null. */
     @Nullable
@@ -95,7 +116,7 @@ public final class ClientHooks {
             footprint = specs == null || specs.isEmpty() ? null : Resolver.Footprint.of(specs.keySet());
         }
         if (footprint == null) return null;
-        return PlacerItem.placement(tool, mc.level, PlacerItem.aim(mc.player, mc.getFrameTime()), mc.player.getDirection(), footprint);
+        return PlacerItem.placement(tool, mc.level, PlacerItem.aim(mc.player, mc.getFrameTime()), facing, footprint);
     }
 
     /** Anchors at the current placement (folding offset and rotation into it), or releases the anchor. */

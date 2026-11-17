@@ -43,7 +43,9 @@ public class BrowserScreen extends Screen {
     private EditBox search;
     private List<Info> shown = List.of();
     private Map<String, Integer> categories = Map.of();
-    private int x0, y0, w, h, scroll;
+    private int x0, y0, w, h;
+    /** Kept between visits, like the search and category. */
+    private static int scroll;
 
     public BrowserScreen() {
         super(Component.translatable("item.mbplacer.placer"));
@@ -73,9 +75,7 @@ public class BrowserScreen extends Screen {
                     .map(en -> ForgeRegistries.BLOCKS.getKey(en.getKey().getBlock()).getNamespace()).filter(ns -> !ns.equals("minecraft"))
                     .findFirst().orElse("minecraft");
             String category = ModList.get().getModContainerById(mod).map(m -> m.getModInfo().getDisplayName()).orElse(Catalog.prettify(mod));
-            String subtitle = c.generator(id).isPresent() ? Component.translatable("mbplacer.gui.any_size").getString()
-                    : e.members().size() > 1 ? Component.translatable("mbplacer.gui.tiers", e.members().size()).getString()
-                    : Component.translatable("mbplacer.gui.blocks", blocks.size()).getString();
+            String subtitle = e.members().size() > 1 ? Component.translatable("mbplacer.gui.tiers", e.members().size()).getString() : "";
             // the rarest block with an item is usually the controller
             ItemStack icon = perState.entrySet().stream().sorted(Map.Entry.comparingByValue())
                     .map(en -> new ItemStack(en.getKey().getBlock())).filter(s -> !s.is(Items.AIR)).findFirst().orElse(ItemStack.EMPTY);
@@ -103,10 +103,12 @@ public class BrowserScreen extends Screen {
         search.setResponder(q -> {
             query = q;
             refilter();
+            scroll = 0;
         });
         addRenderableWidget(search);
         setInitialFocus(search);
         refilter();
+        scroll = Math.min(scroll, maxScroll());
     }
 
     private void refilter() {
@@ -117,7 +119,6 @@ public class BrowserScreen extends Screen {
         String q = query.toLowerCase(Locale.ROOT);
         shown = infos().stream().filter(i -> category.equals(ALL) || i.category().equals(category))
                 .filter(i -> q.isEmpty() || i.name().toLowerCase(Locale.ROOT).contains(q) || i.entry().key().toLowerCase(Locale.ROOT).contains(q)).toList();
-        scroll = 0;
     }
 
     void openForDev(String key) {
@@ -183,7 +184,9 @@ public class BrowserScreen extends Screen {
                 g.renderItem(info.icon(), x + cw / 2 - 8, y + 3 + THUMB_H / 2 - 8);
             }
             g.drawString(font, font.plainSubstrByWidth(info.name(), cw - 8), x + 4, y + THUMB_H + 7, selected ? ACCENT : TEXT, false);
-            g.drawString(font, font.plainSubstrByWidth(info.subtitle() + "  ·  " + info.category(), cw - 8), x + 4, y + THUMB_H + 18, DIM, false);
+            int sw = font.width(info.subtitle());
+            g.drawString(font, font.plainSubstrByWidth(info.category(), cw - 12 - sw), x + 4, y + THUMB_H + 18, DIM, false);
+            g.drawString(font, info.subtitle(), x + cw - 4 - sw, y + THUMB_H + 18, DIM, false);
         }
         g.disableScissor();
         if (!hover.equals(hovered)) {
@@ -219,14 +222,18 @@ public class BrowserScreen extends Screen {
     private boolean pick(String c) {
         category = c;
         refilter();
+        scroll = 0;
         return true;
+    }
+
+    private int maxScroll() {
+        int rows = (shown.size() + cols() - 1) / cols();
+        return Math.max(0, rows * (CARD_H + GAP) - (bottom() - top()));
     }
 
     @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
-        int rows = (shown.size() + cols() - 1) / cols();
-        int max = Math.max(0, rows * (CARD_H + GAP) - (bottom() - top()));
-        scroll = (int) Math.max(0, Math.min(max, scroll - delta * (CARD_H + GAP) / 2));
+        scroll = (int) Math.max(0, Math.min(maxScroll(), scroll - delta * (CARD_H + GAP) / 2));
         return true;
     }
 

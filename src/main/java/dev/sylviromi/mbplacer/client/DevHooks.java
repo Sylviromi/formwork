@@ -211,7 +211,8 @@ public final class DevHooks {
                 if (id.equals(SPEED)) speed++;
                 if (id.equals(ITEM)) item++;
             }
-        MbPlacer.LOG.info("dev: {}: {} placements, {} blocks in bounds, {} speed / {} item modifiers", what, all.size(), blocks, speed, item);
+        MbPlacer.LOG.info("dev: {}: {} placements {}, {} blocks in bounds, {} speed / {} item modifiers", what, all.size(),
+                all.stream().map(r -> Selection.load(r.selection()).entry() + "@" + r.target()).toList(), blocks, speed, item);
     }
 
     private static void shot(Minecraft mc, String name) {

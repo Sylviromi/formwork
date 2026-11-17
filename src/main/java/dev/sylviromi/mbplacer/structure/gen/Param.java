@@ -11,9 +11,23 @@ import java.util.List;
  * An integer parameter of a generator. Labels, when present, name each value from min upward (an enum); a label that is a lang key is translated.
  * nameKey: an existing lang key of the owning mod (e.g. a block name) used as the label, so no own translation is needed.
  */
-public record Param(String name, int min, int max, int def, List<String> labels, @Nullable String nameKey) {
+public record Param(String name, int min, int max, int def, List<String> labels, @Nullable String nameKey, boolean auto) {
     public Param(String name, int min, int max, int def, List<String> labels) {
-        this(name, min, max, def, labels, null);
+        this(name, min, max, def, labels, null, false);
+    }
+
+    /** The value meaning "let the generator decide". */
+    public int autoValue() {
+        return min - 1;
+    }
+
+    /** Adds an Auto choice (below min) and makes it the default. */
+    public Param withAuto() {
+        return new Param(name, min, max, min - 1, labels, nameKey, true);
+    }
+
+    public boolean isAuto(int value) {
+        return auto && value == autoValue();
     }
 
     public static Param range(String name, int min, int max, int def) {
@@ -25,11 +39,11 @@ public record Param(String name, int min, int max, int def, List<String> labels,
     }
 
     public Param named(String langKey) {
-        return new Param(name, min, max, def, labels, langKey);
+        return new Param(name, min, max, def, labels, langKey, auto);
     }
 
     public int clamp(int v) {
-        return Math.max(min, Math.min(max, v));
+        return Math.max(auto ? min - 1 : min, Math.min(max, v));
     }
 
     /** The owning mod's name for it, else ours (mbplacer.param.*), else the prettified name. */
@@ -41,6 +55,7 @@ public record Param(String name, int min, int max, int def, List<String> labels,
     }
 
     public Component valueLabel(int value) {
+        if (isAuto(value)) return Component.translatable("mbplacer.gui.auto");
         if (labels.isEmpty()) return Component.literal(String.valueOf(value));
         String l = labels.get(clamp(value) - min);
         return Language.getInstance().has(l) ? Component.translatable(l) : Component.literal(l);

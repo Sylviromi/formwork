@@ -26,7 +26,8 @@ public final class Placer {
     private Placer() {
     }
 
-    public static void place(ServerPlayer player, ItemStack tool, BlockPos target, Direction facing) {
+    /** skipBlocked (Ctrl): spots that are in the way are left out instead of cancelling the whole placement. */
+    public static void place(ServerPlayer player, ItemStack tool, BlockPos target, Direction facing, boolean skipBlocked) {
         ServerLevel level = player.serverLevel();
         Selection sel = PlacerItem.selection(tool);
         if (sel.isEmpty()) {
@@ -38,15 +39,22 @@ public final class Placer {
             fail(player, "mbplacer.msg.invalid_selection");
             return;
         }
-        Map<BlockPos, Resolver.Placed> blocks = Resolver.world(specs, target, facing);
-        for (BlockPos pos : blocks.keySet()) {
+        Map<BlockPos, Resolver.Placed> all = Resolver.world(specs, target, facing);
+        Map<BlockPos, Resolver.Placed> blocks = new java.util.TreeMap<>(all);
+        for (BlockPos pos : all.keySet()) {
             boolean ok = level.isInWorldBounds(pos) && level.isLoaded(pos) && level.getBlockState(pos).canBeReplaced()
                     && level.mayInteract(player, pos)
                     && !ForgeEventFactory.onBlockPlace(player, BlockSnapshot.create(level.dimension(), level, pos), Direction.UP);
-            if (!ok) {
+            if (ok) continue;
+            if (!skipBlocked) {
                 fail(player, "mbplacer.msg.blocked", pos.getX(), pos.getY(), pos.getZ());
                 return;
             }
+            blocks.remove(pos);
+        }
+        if (blocks.isEmpty()) {
+            fail(player, "mbplacer.msg.blocked", target.getX(), target.getY(), target.getZ());
+            return;
         }
         if (!player.isCreative()) {
             var needed = Materials.needed(blocks.values());
@@ -64,14 +72,16 @@ public final class Placer {
             }
         }
         put(level, blocks, player);
-        Placements.of(level).add(level, Placements.record(blocks, sel.save(), target, facing, player.getUUID()));
+        Placements.of(level).add(level, Placements.record(all, sel.save(), target, facing, player.getUUID()));
         // placed: release the anchor (and its nudges) so the next one follows the crosshair again
         if (PlacerItem.anchor(tool) != null) {
             tool.getTag().remove(PlacerItem.ANCHOR);
             tool.getTag().remove(PlacerItem.ANCHOR_FACING);
             tool.getTag().remove(PlacerItem.OFFSET);
         }
-        player.displayClientMessage(Component.translatable("mbplacer.msg.placed", blocks.size()), true);
+        int skipped = all.size() - blocks.size();
+        player.displayClientMessage(skipped == 0 ? Component.translatable("mbplacer.msg.placed", blocks.size())
+                : Component.translatable("mbplacer.msg.placed_skipped", blocks.size(), skipped), true);
     }
 
     /** Puts the blocks in the world, bottom-up, and loads block entity data. Player may be null (commands). */
