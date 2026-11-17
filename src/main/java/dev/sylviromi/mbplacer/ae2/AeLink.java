@@ -112,6 +112,14 @@ public final class AeLink {
         return true;
     }
 
+    /** Puts the stack into the tool's grid; returns how many were stored (0 without a reachable grid). */
+    public static long insert(ServerPlayer player, ItemStack tool, ItemStack stack) {
+        IGrid grid = grid(player, tool);
+        AEItemKey key = AEItemKey.of(stack);
+        if (grid == null || key == null) return 0;
+        return grid.getStorageService().getInventory().insert(key, stack.getCount(), Actionable.MODULATE, IActionSource.ofPlayer(player));
+    }
+
     /** Requests crafts for the given items on the tool's grid. */
     public static boolean requestCrafts(ServerPlayer player, ItemStack tool, Map<Item, Long> missing) {
         IGrid grid = grid(player, tool);

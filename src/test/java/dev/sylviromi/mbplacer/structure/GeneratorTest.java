@@ -53,6 +53,11 @@ class GeneratorTest {
         assertEquals(2, count(m, "mekanismgenerators:electromagnetic_coil"));
         assertEquals(25, count(m, "mekanismgenerators:turbine_vent"));
         assertEquals(2, count(m, "mekanismgenerators:turbine_valve"));
+        for (int y = 1; y <= 3; y++) {
+            var rotor = m.get(new BlockPos(3, y, 3)).nbt();
+            assertEquals(2, rotor.getInt("blades"), "rotors come with blades");
+            assertEquals(y - 1, rotor.getInt("position"));
+        }
     }
 
     @Test

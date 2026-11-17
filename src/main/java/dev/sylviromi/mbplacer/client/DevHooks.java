@@ -53,7 +53,9 @@ public final class DevHooks {
             mc.player.setXRot(55);
         }
         if (tick == after + 40) shot(mc, "ghost");
-        if (tick == after + 60) mc.stop();
+        if (tick == after + 50) mc.setScreen(new PlacementScreen());
+        if (tick == after + 80) shot(mc, "placement");
+        if (tick == after + 100) mc.stop();
     }
 
     private static void shot(Minecraft mc, String name) {

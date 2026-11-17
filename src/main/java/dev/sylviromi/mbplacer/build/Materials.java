@@ -4,6 +4,7 @@ import dev.sylviromi.mbplacer.MbPlacer;
 import dev.sylviromi.mbplacer.ae2.AeLink;
 import dev.sylviromi.mbplacer.structure.BlockSpec;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
@@ -38,23 +39,31 @@ public final class Materials {
     /** ME status shown in the GUI. */
     public enum MeStatus {NO_AE2, NOT_LINKED, OUT_OF_RANGE, CONNECTED}
 
+    private static final ResourceLocation TURBINE_ROTOR = new ResourceLocation("mekanismgenerators", "turbine_rotor"),
+            TURBINE_BLADE = new ResourceLocation("mekanismgenerators", "turbine_blade");
+
     // shortcut: blocks without an item (fluids, technical blocks) are placed for free; charge buckets if a pack needs it.
-    public static Map<Item, Integer> needed(Collection<BlockState> states) {
+    public static Map<Item, Integer> needed(Collection<Resolver.Placed> blocks) {
         Map<Item, Integer> out = new LinkedHashMap<>();
-        for (BlockState s : states) {
-            Item item = s.getBlock().asItem();
+        for (Resolver.Placed b : blocks) {
+            Item item = b.state().getBlock().asItem();
             if (item != Items.AIR) out.merge(item, 1, Integer::sum);
+            // items stored in block entity nbt are placed too, so they cost. shortcut: only turbine blades so far
+            if (b.nbt() != null && b.nbt().getInt("blades") > 0 && TURBINE_ROTOR.equals(ForgeRegistries.BLOCKS.getKey(b.state().getBlock()))) {
+                Item blade = ForgeRegistries.ITEMS.getValue(TURBINE_BLADE);
+                if (blade != null && blade != Items.AIR) out.merge(blade, b.nbt().getInt("blades"), Integer::sum);
+            }
         }
         return out;
     }
 
     public static Map<Item, Integer> neededForSpecs(Collection<BlockSpec> specs) {
-        List<BlockState> states = new ArrayList<>();
+        List<Resolver.Placed> blocks = new ArrayList<>();
         for (BlockSpec s : specs) {
             BlockState state = Resolver.state(s);
-            if (state != null) states.add(state);
+            if (state != null) blocks.add(new Resolver.Placed(state, s.nbt()));
         }
-        return needed(states);
+        return needed(blocks);
     }
 
     public static int inInventory(Inventory inv, Item item) {

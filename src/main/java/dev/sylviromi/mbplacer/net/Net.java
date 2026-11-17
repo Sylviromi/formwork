@@ -30,7 +30,7 @@ import java.util.function.Supplier;
 
 /** All packets. Server to client: catalog sync and material reports. Client to server: selection, report query, craft request. */
 public final class Net {
-    private static final String VERSION = "1";
+    private static final String VERSION = "2";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(MbPlacer.ID, "main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -92,6 +92,17 @@ public final class Net {
         }
     }
 
+    /** Anchor, offset, rotation and mode of the held tool (see PlacerItem.placementTag). */
+    public record SetPlacement(CompoundTag placement) {
+        void write(FriendlyByteBuf b) {
+            b.writeNbt(placement);
+        }
+
+        static SetPlacement read(FriendlyByteBuf b) {
+            return new SetPlacement(b.readNbt());
+        }
+    }
+
     public record RequestCrafts() {
     }
 
@@ -120,6 +131,8 @@ public final class Net {
                 .encoder(SetSelection::write).decoder(SetSelection::read).consumerMainThread(Net::onSetSelection).add();
         CHANNEL.messageBuilder(RequestCrafts.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder((m, b) -> {}).decoder(b -> new RequestCrafts()).consumerMainThread(Net::onRequestCrafts).add();
+        CHANNEL.messageBuilder(SetPlacement.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(SetPlacement::write).decoder(SetPlacement::read).consumerMainThread(Net::onSetPlacement).add();
     }
 
     /** Sends the whole catalog on join and after /reload. */
@@ -166,6 +179,12 @@ public final class Net {
         if (Resolver.specs(Catalog.server, sel) == null) return;
         PlacerItem.setSelection(tool, sel);
         sendReport(p, tool);
+    }
+
+    private static void onSetPlacement(SetPlacement m, Supplier<NetworkEvent.Context> ctx) {
+        ServerPlayer p = ctx.get().getSender();
+        ItemStack tool = p == null ? ItemStack.EMPTY : heldTool(p);
+        if (!tool.isEmpty() && m.placement() != null) PlacerItem.applyPlacement(tool, m.placement(), p.blockPosition());
     }
 
     /** Material report for the tool's current selection. */

@@ -9,35 +9,38 @@ import dev.sylviromi.mbplacer.structure.Catalog;
 import dev.sylviromi.mbplacer.structure.Selection;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.block.BlockRenderDispatcher;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
-import net.minecraftforge.client.model.data.ModelData;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * Draws the selected structure as a ghost where it would be placed.
- * shortcut: re-tessellates every block each frame; cache in VertexBuffers if large structures cost too many fps.
+ * Draws the selected structure as a ghost where it would be placed. The mesh is built once per selection and facing,
+ * in coordinates relative to the target, so moving the target only moves the mesh.
  */
 @Mod.EventBusSubscriber(modid = MbPlacer.ID, value = Dist.CLIENT)
 public final class WorldGhost {
-    private static String cacheKey = "";
-    private static Map<BlockPos, Resolver.Placed> cache = Map.of();
+    private static final int MAX_MARKED = 2048;
+    private static String meshKey = "";
+    private static StructureMesh mesh;
+    private static Map<BlockPos, BlockState> rel = Map.of();
+    private static AABB relBox;
+    private static String markedKey = "";
+    private static long markedAt;
+    private static List<BlockPos> marked = List.of();
 
     private WorldGhost() {
     }
@@ -46,46 +49,60 @@ public final class WorldGhost {
     public static void onRender(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || mc.level == null || !(mc.hitResult instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK) return;
+        if (mc.player == null || mc.level == null) return;
         ItemStack tool = heldTool();
-        if (tool.isEmpty()) return;
         Selection sel = PlacerItem.selection(tool);
-        if (sel.isEmpty()) return;
-        BlockPos target = PlacerItem.target(mc.level, hit);
-        Direction facing = mc.player.getDirection();
-        String key = sel.save() + "|" + target + "|" + facing + "|" + System.identityHashCode(Catalog.client) + Catalog.client.blueprints.size();
-        if (!key.equals(cacheKey)) {
-            cacheKey = key;
+        PlacerItem.Placement at = tool.isEmpty() || sel.isEmpty() ? null : ClientHooks.currentPlacement(tool);
+        if (at == null) return;
+        String key = sel.save() + "|" + at.facing() + "|" + System.identityHashCode(Catalog.client) + Catalog.client.blueprints.size();
+        if (!key.equals(meshKey)) {
+            meshKey = key;
+            if (mesh != null) mesh.close();
+            mesh = null;
             Map<BlockPos, BlockSpec> specs = Resolver.specs(Catalog.client, sel);
-            cache = specs == null || specs.isEmpty() ? Map.of() : Resolver.world(specs, target, facing);
+            rel = new LinkedHashMap<>();
+            relBox = null;
+            if (specs != null && !specs.isEmpty()) Resolver.world(specs, BlockPos.ZERO, at.facing()).forEach((p, b) -> rel.put(p, b.state()));
+            for (BlockPos p : rel.keySet()) relBox = relBox == null ? new AABB(p) : relBox.minmax(new AABB(p));
+            if (!rel.isEmpty()) mesh = new StructureMesh(rel);
         }
-        if (cache.isEmpty()) return;
+        if (mesh == null) return;
+        boolean dismantle = PlacerItem.dismantle(tool), anchored = PlacerItem.anchor(tool) != null;
+        BlockPos t = at.target();
+        updateMarked(mc, t, dismantle);
 
         PoseStack ps = event.getPoseStack();
         Vec3 cam = event.getCamera().getPosition();
-        MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
-        BlockRenderDispatcher br = mc.getBlockRenderer();
         float pulse = 0.45f + 0.15f * (float) Math.sin((mc.level.getGameTime() + event.getPartialTick()) / 6.0);
-        AABB box = null;
-        for (var e : cache.entrySet()) {
-            BlockPos pos = e.getKey();
-            boolean blocked = !mc.level.getBlockState(pos).canBeReplaced();
-            TintedConsumer vc = blocked ? new TintedConsumer(buffers.getBuffer(RenderType.translucent()), 1f, 0.3f, 0.3f, 0.8f)
-                    : new TintedConsumer(buffers.getBuffer(RenderType.translucent()), 0.6f, 0.9f, 1f, pulse);
-            ps.pushPose();
-            ps.translate(pos.getX() - cam.x, pos.getY() - cam.y, pos.getZ() - cam.z);
-            br.renderSingleBlock(e.getValue().state(), ps, rt -> vc, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, ModelData.EMPTY, null);
-            ps.popPose();
-            box = box == null ? new AABB(pos) : box.minmax(new AABB(pos));
+        ps.pushPose();
+        ps.translate(t.getX() - cam.x, t.getY() - cam.y, t.getZ() - cam.z);
+        if (dismantle) mesh.drawGhost(ps.last().pose(), event.getProjectionMatrix(), 1f, 0.45f, 0.45f, pulse);
+        else mesh.drawGhost(ps.last().pose(), event.getProjectionMatrix(), 0.6f, 0.9f, 1f, pulse);
+        MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
+        var lines = buffers.getBuffer(RenderType.lines());
+        // place mode: red boxes where something is in the way. dismantle mode: red boxes on blocks that will be removed
+        for (BlockPos p : marked) LevelRenderer.renderLineBox(ps, lines, new AABB(p).deflate(0.02), 1f, 0.3f, 0.3f, 1f);
+        if (anchored) LevelRenderer.renderLineBox(ps, lines, relBox.inflate(0.01), 1f, 0.8f, 0.25f, 1f);
+        else LevelRenderer.renderLineBox(ps, lines, relBox.inflate(0.01), 0.35f, 0.85f, 1f, 1f);
+        buffers.endBatch(RenderType.lines());
+        ps.popPose();
+    }
+
+    /** Re-checks the world every 5 ticks or when the target moves (relative positions). */
+    private static void updateMarked(Minecraft mc, BlockPos t, boolean dismantle) {
+        String key = meshKey + t + dismantle;
+        long now = mc.level.getGameTime();
+        if (key.equals(markedKey) && now - markedAt < 5 && now >= markedAt) return;
+        markedKey = key;
+        markedAt = now;
+        List<BlockPos> out = new ArrayList<>();
+        for (var e : rel.entrySet()) {
+            if (out.size() >= MAX_MARKED) break;
+            BlockState world = mc.level.getBlockState(e.getKey().offset(t));
+            boolean mark = dismantle ? world.getBlock() == e.getValue().getBlock() : !world.canBeReplaced();
+            if (mark) out.add(e.getKey());
         }
-        buffers.endBatch(RenderType.translucent());
-        if (box != null) {
-            ps.pushPose();
-            ps.translate(-cam.x, -cam.y, -cam.z);
-            LevelRenderer.renderLineBox(ps, buffers.getBuffer(RenderType.lines()), box.inflate(0.01), 0.35f, 0.85f, 1f, 1f);
-            ps.popPose();
-            buffers.endBatch(RenderType.lines());
-        }
+        marked = out;
     }
 
     static ItemStack heldTool() {

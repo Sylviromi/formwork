@@ -49,7 +49,7 @@ public final class Placer {
             }
         }
         if (!player.isCreative()) {
-            var needed = Materials.needed(blocks.values().stream().map(Resolver.Placed::state).toList());
+            var needed = Materials.needed(blocks.values());
             List<Materials.Row> rows = Materials.report(player, tool, needed);
             List<Materials.Row> missing = rows.stream().filter(r -> r.missing() > 0).toList();
             if (!missing.isEmpty()) {

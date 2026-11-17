@@ -2,6 +2,7 @@ package dev.sylviromi.mbplacer.structure.gen;
 
 import dev.sylviromi.mbplacer.structure.BlockSpec;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -10,7 +11,7 @@ import java.util.Map;
 /**
  * Mekanism industrial turbine. Square, odd sized. Rotor shaft in the centre, rotational complex on top of it
  * surrounded by a full layer of pressure dispersers, coils touching the complex above, vents above the dispersers.
- * shortcut: rotors are placed without blades; the player still inserts blades by hand.
+ * Rotors come with both blades in (Mekanism reads "blades" from each rotor when the turbine forms).
  */
 public final class IndustrialTurbine implements Generator {
     private static final String M = "mekanism:", G = "mekanismgenerators:";
@@ -31,7 +32,12 @@ public final class IndustrialTurbine implements Generator {
         int rotors = Math.max(1, Math.min(v[2], Math.min(h - 4, 4 * ((s - 3) / 2) + 3))); // TurbineValidator: (s-3)/2 >= rotors/4
         int disperserY = rotors + 1;
         Box box = new Box(s, h, s).shell(G + "turbine_casing", v[4] == 1 ? M + "structural_glass" : G + "turbine_casing");
-        for (int y = 1; y <= rotors; y++) box.set(c, y, c, G + "turbine_rotor");
+        for (int y = 1; y <= rotors; y++) {
+            CompoundTag nbt = new CompoundTag();
+            nbt.putInt("blades", 2);
+            nbt.putInt("position", y - 1);
+            box.blocks.put(new BlockPos(c, y, c), new BlockSpec(G + "turbine_rotor", Map.of(), nbt));
+        }
         box.layer(disperserY, M + "pressure_disperser");
         box.set(c, disperserY, c, G + "rotational_complex");
         // coils must form one face-connected group starting above the complex: fill by Manhattan distance, layer by layer

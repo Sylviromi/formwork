@@ -1,6 +1,6 @@
 package dev.sylviromi.mbplacer.client;
 
-import com.mojang.blaze3d.platform.Lighting;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import dev.sylviromi.mbplacer.build.Materials;
@@ -17,25 +17,23 @@ import dev.sylviromi.mbplacer.structure.gen.Param;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.renderer.LightTexture;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.client.model.data.ModelData;
 import net.minecraftforge.registries.ForgeRegistries;
+import org.joml.Matrix4f;
 
 import java.util.*;
 
 /** The picker: searchable list (left), 3D preview (centre), settings, variants and materials (right). */
 public class PlacerScreen extends Screen {
     // palette
-    private static final int BG = 0xE00D1117, PANEL = 0xF0161B22, BORDER = 0xFF30363D, ACCENT = 0xFF4FD1FF,
+    static final int BG = 0xE00D1117, PANEL = 0xF0161B22, BORDER = 0xFF30363D, ACCENT = 0xFF4FD1FF,
             TEXT = 0xFFE6EDF3, DIM = 0xFF8B949E, HOVER = 0x2A4FD1FF, RED = 0xFFFF6B6B, GREEN = 0xFF6BE58A, YELLOW = 0xFFFFD166;
-    private static final int ROW = 14, LIST_W = 150, SIDE_W = 180, PAD = 6;
+    private static final int ROW = 14, PAD = 6;
+    private int LIST_W = 150, SIDE_W = 180;
 
     private int x0, y0, w, h;
     private EditBox search;
@@ -47,8 +45,9 @@ public class PlacerScreen extends Screen {
     private int[] params = new int[0];
     private final Map<String, Map<String, Integer>> counts = new LinkedHashMap<>();
 
-    private final List<Map.Entry<BlockPos, BlockState>> preview = new ArrayList<>();
-    private float cx, cy, cz, size = 1, yaw = 225, pitch = 30, zoom = 1;
+    private final Map<BlockPos, BlockState> preview = new LinkedHashMap<>();
+    private StructureMesh mesh;
+    private float cx, cy, cz, dx = 1, dy = 1, dz = 1, yaw = 225, pitch = 30, zoom = 1;
     private List<Line> lines = List.of();
 
     public PlacerScreen() {
@@ -81,8 +80,10 @@ public class PlacerScreen extends Screen {
 
     @Override
     protected void init() {
-        w = Math.min(width - 16, 620);
-        h = Math.min(height - 16, 340);
+        w = width - 16;
+        h = height - 16;
+        LIST_W = Math.max(100, Math.min(170, w * 22 / 100));
+        SIDE_W = Math.max(150, Math.min(240, w * 32 / 100));
         x0 = (width - w) / 2;
         y0 = (height - h) / 2;
         String query = search == null ? "" : search.getValue();
@@ -142,6 +143,7 @@ public class PlacerScreen extends Screen {
     /** Recomputes preview and side column; sends the selection to the server when it changed. */
     private void rebuild(boolean send) {
         preview.clear();
+        closeMesh();
         Map<BlockPos, BlockSpec> specs = entry == null ? null : Resolver.specs(catalog(), selection());
         if (specs != null) {
             int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
@@ -149,7 +151,7 @@ public class PlacerScreen extends Screen {
                 BlockState s = Resolver.state(e.getValue());
                 if (s == null) continue;
                 BlockPos p = e.getKey();
-                preview.add(Map.entry(p, s));
+                preview.put(p, s);
                 minX = Math.min(minX, p.getX()); maxX = Math.max(maxX, p.getX());
                 minY = Math.min(minY, p.getY()); maxY = Math.max(maxY, p.getY());
                 minZ = Math.min(minZ, p.getZ()); maxZ = Math.max(maxZ, p.getZ());
@@ -157,7 +159,9 @@ public class PlacerScreen extends Screen {
             cx = (minX + maxX + 1) / 2f;
             cy = (minY + maxY + 1) / 2f;
             cz = (minZ + maxZ + 1) / 2f;
-            size = Math.max(1, Math.max(maxX - minX, Math.max(maxY - minY, maxZ - minZ)) + 1);
+            dx = maxX - minX + 1;
+            dy = maxY - minY + 1;
+            dz = maxZ - minZ + 1;
         }
         lines = buildLines(specs);
         if (send && entry != null) Net.CHANNEL.sendToServer(new Net.SetSelection(selection().save()));
@@ -380,7 +384,8 @@ public class PlacerScreen extends Screen {
         if (entry == null) return;
         g.drawString(font, font.plainSubstrByWidth(PlacerItem.displayName(currentId()).getString(), pw), px, y0 + PAD + 2, TEXT, false);
         String count = Component.translatable("mbplacer.gui.blocks", preview.size()).getString();
-        g.drawString(font, count, px + pw - font.width(count) - 4, py + ph - 12, DIM, false);
+        g.drawString(font, count, px + pw - font.width(count) - 4, py + 4, DIM, false);
+        g.drawString(font, Component.translatable("mbplacer.gui.view_hint"), px + 4, py + ph - 12, DIM, false);
         if (entry.members().size() > 1) {
             int ty = py + ph + 6;
             boolean hl = mx >= px && mx < px + 20 && my >= ty - 4 && my < ty + 12, hr = mx >= px + pw - 20 && mx < px + pw && my >= ty - 4 && my < ty + 12;
@@ -389,26 +394,26 @@ public class PlacerScreen extends Screen {
             g.drawCenteredString(font, Component.translatable("mbplacer.gui.tier", tier + 1, entry.members().size()), px + pw / 2, ty, TEXT);
         }
         g.enableScissor(px + 1, py + 1, px + pw - 1, py + ph - 1);
-        PoseStack ps = g.pose();
-        ps.pushPose();
-        float s = Math.min(pw, ph) / (size * 1.75f) * zoom;
-        ps.translate(px + pw / 2f, py + ph / 2f, 400);
-        ps.scale(s, -s, -s);
-        ps.mulPose(Axis.XP.rotationDegrees(pitch));
-        ps.mulPose(Axis.YP.rotationDegrees(yaw));
-        ps.translate(-cx, -cy, -cz);
-        Lighting.setupFor3DItems();
-        MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
-        var br = minecraft.getBlockRenderer();
-        for (var e : preview) {
+        if (mesh == null && !preview.isEmpty()) mesh = new StructureMesh(preview);
+        if (mesh != null) {
+            g.flush();
+            PoseStack ps = g.pose();
             ps.pushPose();
-            BlockPos p = e.getKey();
-            ps.translate(p.getX(), p.getY(), p.getZ());
-            br.renderSingleBlock(e.getValue(), ps, buffers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, ModelData.EMPTY, null);
+            // fit the structure's screen extent at the current pitch (any yaw)
+            float horiz = (float) Math.sqrt(dx * dx + dz * dz), diag = (float) Math.sqrt(horiz * horiz + dy * dy);
+            double p = Math.toRadians(pitch);
+            float vert = (float) (dy * Math.abs(Math.cos(p)) + horiz * Math.abs(Math.sin(p)));
+            float s = Math.min((pw - 8) / horiz, (ph - 24) / vert) * zoom;
+            ps.translate(px + pw / 2f, py + ph / 2f, 400);
+            // the GUI projection is orthographic, so z scale only sets depth: keeps the model within z 300..500 at any zoom
+            ps.scale(s, -s, 200f / diag);
+            ps.mulPose(Axis.XP.rotationDegrees(pitch));
+            ps.mulPose(Axis.YP.rotationDegrees(yaw));
+            ps.translate(-cx, -cy, -cz);
+            RenderSystem.enableDepthTest();
+            mesh.draw(new Matrix4f(RenderSystem.getModelViewMatrix()).mul(ps.last().pose()), RenderSystem.getProjectionMatrix());
             ps.popPose();
         }
-        buffers.endBatch();
-        ps.popPose();
         g.disableScissor();
     }
 
@@ -478,6 +483,16 @@ public class PlacerScreen extends Screen {
             zoom = (float) Math.max(0.3, Math.min(6, zoom * (delta > 0 ? 1.15 : 1 / 1.15)));
         }
         return true;
+    }
+
+    private void closeMesh() {
+        if (mesh != null) mesh.close();
+        mesh = null;
+    }
+
+    @Override
+    public void removed() {
+        closeMesh();
     }
 
     @Override
