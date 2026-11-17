@@ -45,7 +45,17 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
   - `WorldGhost`.
 - Placement settings live in the tool nbt (`anchor`, `anchorFacing`, `offset`, `rotation`, `dismantle`). `PlacerItem.placement()` turns them into target + facing on both sides. The server clamps offsets to 64 and refuses anchors or targets more than 128 blocks away.
 
-## Status (updated 2026-11-17, v0.2.0)
+## Status (updated 2026-11-17, v0.3.0)
+- [x] v0.3.0 (installed in the pack):
+  - GUI split: `BrowserScreen` (search, mod categories, cards with lazy 3D thumbnails) and `EditorScreen` (3D view with turn/reset/spin/pan and a layer slider; Settings / Variants / Materials tabs)
+  - variants are icon grids with count badges (click +1, right-click -1, shift fills/clears). `"columns"` in a variant JSON sets the grid width (void miner 3, solar 2)
+  - placement card (H): anchor toggle, N/E/S/W compass, look-relative pad, up/down, reset, Place/Dismantle
+  - `client/Ui`: palette, flat buttons with hover, 9x9 pixel icons (`textures/gui/icons.png`), the shared 3D view. Clears depth after the model so GUI stays on top
+  - `build/Placements`: SavedData of every placement per dimension, synced to clients. Pointing at one with the tool highlights it (`WorldGhost.renderPlaced`, `Hud`)
+  - dismantle: hold use on a placed multiblock, 1-5 s by size, cancels when looking away. No ghost-alignment fallback (user decision)
+  - edit placed: sneak+use on it opens the editor in edit mode; `build/Updater` swaps only differing blocks, charges the new ones, returns the old ones
+  - verified in the dev run (`-Pmbdev`): MM water condenser placed with a tiny port variant, edited 1 -> 2 tiny ports, held-use dismantle left 0 blocks and 0 records
+- Dev MM test setup: `./gradlew copyPackMods` (now also KubeJS, Rhino, Architectury), the pack's `kubejs/startup_scripts/masterfull_machinery` in `run/kubejs/startup_scripts`, then `python3 tools/dev_mm_structures.py "<pack>/minecraft"`.
 - [x] v0.2.0:
   - preview depth fixed (the Z scale was negative, so back faces drew)
   - preview fits its panel and the layout scales with the screen
@@ -53,7 +63,7 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
   - anchor/offset/rotate panel
   - dismantle mode
   - turbine rotors placed with 2 blades each, and blades count as materials (verified headless: rotors keep `blades: 2`, turbine forms)
-- [ ] **Dismantle, anchor and placement panel are untested in game** (only screenshots of the panel). Test: anchor with G, nudge with H, place; switch to dismantle and remove it.
+- [ ] **Untested by a real player in the pack:** anchor (G), the placement card (H), held-use dismantle and editing placed multiblocks. The dev run drives them through code and a simulated use key.
 - [ ] Preview does not draw block entity renderers, so turbine blades show only in the world, not in the picker.
 - [x] Gradle build, 12 JUnit tests pass (`./gradlew test`).
 - [x] Structure layer, generators, resolver, materials, placer, AE2 link, network, item, resources.
