@@ -11,24 +11,35 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
-import static dev.sylviromi.mbplacer.client.PlacerScreen.*;
+import static dev.sylviromi.mbplacer.client.Ui.*;
 
 /**
- * See-through placement panel (like Building Gadgets' paste GUI): anchor, nudge, rotate and mode, with the ghost moving live.
- * Arrow keys move relative to where the player looks, Page Up/Down move vertically, R rotates. Shift moves by 10.
+ * Compact see-through placement card: anchor, facing compass, nudge pad, mode. The ghost moves live behind it.
+ * Arrow keys move relative to where the player looks, Page Up/Down vertically, R turns. Shift moves by 10.
  */
 public class PlacementScreen extends Screen {
-    private static final int PW = 186, BH = 16;
+    private static final int W = 134, B = 15;
     private final List<Btn> buttons = new ArrayList<>();
-    private int px, py, ph;
+    private int x0, y0, h;
 
-    private record Btn(int x, int y, int w, Supplier<Component> label, Runnable action) {
+    private static final int NORMAL = 0, DANGER = 1, ANCHOR = 2;
+
+    /** A button with a text label or an icon; on() highlights it in its style's colour. */
+    private record Btn(int x, int y, int w, String label, Icon icon, Component tip, BooleanSupplier on, Runnable action, int style) {
         boolean over(double mx, double my) {
-            return mx >= x && mx < x + w && my >= y && my < y + BH;
+            return mx >= x && mx < x + w && my >= y && my < y + B;
         }
+    }
+
+    private void text(int x, int y, int w, String label, Component tip, BooleanSupplier on, Runnable action, int style) {
+        buttons.add(new Btn(x, y, w, label, null, tip, on, action, style));
+    }
+
+    private void icon(int x, int y, int w, Icon icon, Component tip, BooleanSupplier on, Runnable action, int style) {
+        buttons.add(new Btn(x, y, w, null, icon, tip, on, action, style));
     }
 
     public PlacementScreen() {
@@ -47,58 +58,70 @@ public class PlacementScreen extends Screen {
         ClientHooks.setPlacement(tool, t);
     }
 
-    private static void move(int axis, int by) {
+    private void move(Direction d, int by) {
         edit(t -> {
             int[] o = t.getIntArray(PlacerItem.OFFSET);
-            o[axis] += by;
+            o[0] += d.getStepX() * by;
+            o[1] += d.getStepY() * by;
+            o[2] += d.getStepZ() * by;
             t.putIntArray(PlacerItem.OFFSET, o);
         });
-    }
-
-    private static void move(Direction d, int by) {
-        move(0, d.getStepX() * by);
-        move(1, d.getStepY() * by);
-        move(2, d.getStepZ() * by);
     }
 
     private static int step() {
         return hasShiftDown() ? 10 : 1;
     }
 
+    /** Facing the structure would be placed with now. */
+    private static Direction facing() {
+        PlacerItem.Placement p = ClientHooks.currentPlacement(tool());
+        return p == null ? Direction.NORTH : p.facing();
+    }
+
+    private static void face(Direction d) {
+        edit(t -> {
+            Direction base = t.contains(PlacerItem.ANCHOR) ? Direction.from2DDataValue(t.getInt(PlacerItem.ANCHOR_FACING))
+                    : net.minecraft.client.Minecraft.getInstance().player.getDirection();
+            t.putInt(PlacerItem.ROTATION, dev.sylviromi.mbplacer.build.Resolver.turnsTo(base, d));
+        });
+    }
+
+    private Direction look() {
+        return minecraft.player.getDirection();
+    }
+
     @Override
     protected void init() {
         buttons.clear();
-        ph = 22 + 6 * (BH + 4) + 26;
-        px = 10;
-        py = (height - ph) / 2;
-        int x = px + 6, w = PW - 12, y = py + 20;
-        buttons.add(new Btn(x, y, w, () -> Component.translatable(PlacerItem.anchor(tool()) == null ? "mbplacer.gui.anchor" : "mbplacer.gui.release"),
-                () -> ClientHooks.toggleAnchor(tool())));
-        String[] axes = {"X", "Y", "Z"};
-        for (int i = 0; i < 3; i++) {
-            int axis = i;
-            y += BH + 4;
-            buttons.add(new Btn(x + w - 2 * BH - 4, y, BH, () -> Component.literal("-"), () -> move(axis, -step())));
-            buttons.add(new Btn(x + w - BH, y, BH, () -> Component.literal("+"), () -> move(axis, step())));
-            buttons.add(new Btn(x, y, 0, () -> Component.literal(axes[axis] + "  " + PlacerItem.offset(tool())[axis]), () -> {}));
-        }
-        y += BH + 4;
-        buttons.add(new Btn(x, y, 0, () -> Component.translatable("mbplacer.gui.rotation", PlacerItem.rotation(tool()) * 90), () -> {}));
-        buttons.add(new Btn(x + w - 2 * BH - 4, y, BH, () -> Component.literal("⟲"), () -> rotate(-1)));
-        buttons.add(new Btn(x + w - BH, y, BH, () -> Component.literal("⟳"), () -> rotate(1)));
-        y += BH + 4;
-        buttons.add(new Btn(x, y, w, () -> Component.translatable(PlacerItem.dismantle(tool()) ? "mbplacer.gui.mode_dismantle" : "mbplacer.gui.mode_place"),
-                () -> edit(t -> t.putBoolean(PlacerItem.DISMANTLE, !t.getBoolean(PlacerItem.DISMANTLE)))));
-        y += BH + 4;
-        buttons.add(new Btn(x, y, w / 2 - 2, () -> Component.translatable("mbplacer.gui.reset"), () -> edit(t -> {
+        h = 124;
+        x0 = 8;
+        y0 = (height - h) / 2;
+        int x = x0 + 6, right = x0 + W - 6;
+        icon(right - B, y0 + 4, B, Icon.ANCHOR, Component.translatable("mbplacer.gui.anchor_tip"), () -> PlacerItem.anchor(tool()) != null,
+                () -> ClientHooks.toggleAnchor(tool()), ANCHOR);
+        // compass, N up like a map: sets which way the structure faces
+        int cx = x + 22, cy = y0 + 44, half = B / 2;
+        for (Direction d : new Direction[]{Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST})
+            text(cx - half + d.getStepX() * 15, cy - half + d.getStepZ() * 15, B, d.getName().substring(0, 1).toUpperCase(java.util.Locale.ROOT),
+                    Component.translatable("mbplacer.gui.face", Component.translatable("mbplacer.dir." + d.getName())), () -> facing() == d, () -> face(d), NORMAL);
+        // pad: moves relative to where the player looks
+        int pw = 3 * B + 4, px = right - pw, pcx = px + B + 2, pcy = cy - half;
+        icon(pcx, pcy - B - 2, B, Icon.UP, Component.translatable("mbplacer.gui.forward"), () -> false, () -> move(look(), step()), NORMAL);
+        icon(pcx, pcy + B + 2, B, Icon.DOWN, Component.translatable("mbplacer.gui.back"), () -> false, () -> move(look(), -step()), NORMAL);
+        icon(px, pcy, B, Icon.LEFT, Component.translatable("mbplacer.gui.left"), () -> false, () -> move(look().getCounterClockWise(), step()), NORMAL);
+        icon(px + 2 * B + 4, pcy, B, Icon.RIGHT, Component.translatable("mbplacer.gui.right"), () -> false, () -> move(look().getClockWise(), step()), NORMAL);
+        int uy = cy + 28, vw = (pw - 2) / 2;
+        icon(px, uy, vw, Icon.TOP, Component.translatable("mbplacer.gui.up"), () -> false, () -> move(Direction.UP, step()), NORMAL);
+        icon(right - vw, uy, vw, Icon.BOTTOM, Component.translatable("mbplacer.gui.down"), () -> false, () -> move(Direction.DOWN, step()), NORMAL);
+        text(x, uy, cx + 22 + half - x, Component.translatable("mbplacer.gui.reset_short").getString(), Component.translatable("mbplacer.gui.reset"), () -> false, () -> edit(t -> {
             t.putIntArray(PlacerItem.OFFSET, new int[3]);
             t.putInt(PlacerItem.ROTATION, 0);
-        })));
-        buttons.add(new Btn(x + w / 2 + 2, y, w / 2 - 2, () -> Component.translatable("gui.done"), this::onClose));
-    }
-
-    private static void rotate(int by) {
-        edit(t -> t.putInt(PlacerItem.ROTATION, Math.floorMod(t.getInt(PlacerItem.ROTATION) + by, 4)));
+        }), NORMAL);
+        int my = y0 + h - B - 6, mw = (W - 14) / 2;
+        text(x, my, mw, Component.translatable("mbplacer.gui.place").getString(), Component.translatable("mbplacer.gui.place_tip"),
+                () -> !PlacerItem.dismantle(tool()), () -> edit(t -> t.putBoolean(PlacerItem.DISMANTLE, false)), NORMAL);
+        text(right - mw, my, mw, Component.translatable("mbplacer.gui.dismantle").getString(), Component.translatable("mbplacer.gui.dismantle_tip"),
+                () -> PlacerItem.dismantle(tool()), () -> edit(t -> t.putBoolean(PlacerItem.DISMANTLE, true)), DANGER);
     }
 
     @Override
@@ -108,27 +131,29 @@ public class PlacementScreen extends Screen {
             return;
         }
         // no background: the world and the ghost stay visible
-        g.fill(px, py, px + PW, py + ph, BG);
-        g.renderOutline(px, py, PW, ph, BORDER);
-        g.drawString(font, title, px + 6, py + 6, ACCENT, false);
+        g.fill(x0, y0, x0 + W, y0 + h, BG);
+        g.renderOutline(x0, y0, W, h, BORDER);
+        g.drawString(font, title, x0 + 6, y0 + 8, ACCENT, false);
+        int[] o = PlacerItem.offset(tool());
+        g.drawCenteredString(font, "x " + o[0] + "  y " + o[1] + "  z " + o[2], x0 + W / 2, y0 + 91, DIM);
         for (Btn b : buttons) {
-            if (b.w() == 0) {
-                g.drawString(font, b.label().get(), b.x(), b.y() + 4, TEXT, false);
-                continue;
-            }
-            boolean hover = b.over(mx, my);
-            g.fill(b.x(), b.y(), b.x() + b.w(), b.y() + BH, hover ? 0xFF2B6F87 : 0xFF1F4E5F);
-            g.renderOutline(b.x(), b.y(), b.w(), BH, hover ? ACCENT : BORDER);
-            g.drawCenteredString(font, b.label().get(), b.x() + b.w() / 2, b.y() + 4, TEXT);
+            boolean hover = b.over(mx, my), on = b.on().getAsBoolean();
+            int fill = !on ? (hover ? BTN_HOVER : BTN) : b.style() == DANGER ? 0xFF6B2B2B : b.style() == ANCHOR ? 0xFF6B5A1F : BTN_ON;
+            int edge = on ? (b.style() == DANGER ? RED : b.style() == ANCHOR ? YELLOW : ACCENT) : hover ? ACCENT : BORDER;
+            g.fill(b.x(), b.y(), b.x() + b.w(), b.y() + B, fill);
+            g.renderOutline(b.x(), b.y(), b.w(), B, edge);
+            int color = on && b.style() == ANCHOR ? YELLOW : hover ? 0xFFFFFFFF : TEXT;
+            if (b.icon() != null) Ui.icon(g, b.icon(), b.x() + (b.w() - 9) / 2, b.y() + (B - 9) / 2, color);
+            else g.drawCenteredString(font, b.label(), b.x() + (b.w() + 1) / 2, b.y() + (B - 7) / 2, color);
+            if (hover) setTooltipForNextRenderPass(b.tip());
         }
-        g.drawString(font, Component.translatable("mbplacer.gui.placement_keys"), px + 6, py + ph - 12, DIM, false);
         super.render(g, mx, my, partial);
     }
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
         for (Btn b : buttons)
-            if (b.w() > 0 && b.over(mx, my)) {
+            if (b.over(mx, my)) {
                 b.action().run();
                 return true;
             }
@@ -137,18 +162,21 @@ public class PlacementScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
-        Direction facing = minecraft.player.getDirection();
         switch (key) {
-            case GLFW.GLFW_KEY_UP -> move(facing, step());
-            case GLFW.GLFW_KEY_DOWN -> move(facing, -step());
-            case GLFW.GLFW_KEY_LEFT -> move(facing.getCounterClockWise(), step());
-            case GLFW.GLFW_KEY_RIGHT -> move(facing.getClockWise(), step());
-            case GLFW.GLFW_KEY_PAGE_UP -> move(1, step());
-            case GLFW.GLFW_KEY_PAGE_DOWN -> move(1, -step());
-            case GLFW.GLFW_KEY_R -> rotate(1);
+            case GLFW.GLFW_KEY_UP -> move(look(), step());
+            case GLFW.GLFW_KEY_DOWN -> move(look(), -step());
+            case GLFW.GLFW_KEY_LEFT -> move(look().getCounterClockWise(), step());
+            case GLFW.GLFW_KEY_RIGHT -> move(look().getClockWise(), step());
+            case GLFW.GLFW_KEY_PAGE_UP -> move(Direction.UP, step());
+            case GLFW.GLFW_KEY_PAGE_DOWN -> move(Direction.DOWN, step());
+            case GLFW.GLFW_KEY_R -> face(facing().getClockWise());
             default -> {
                 if (ClientHooks.PLACEMENT.matches(key, scan)) {
                     onClose();
+                    return true;
+                }
+                if (ClientHooks.ANCHOR.matches(key, scan)) {
+                    ClientHooks.toggleAnchor(tool());
                     return true;
                 }
                 return super.keyPressed(key, scan, mods);

@@ -2,6 +2,8 @@ package dev.sylviromi.mbplacer.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.sylviromi.mbplacer.MbPlacer;
+import dev.sylviromi.mbplacer.build.Dismantler;
+import dev.sylviromi.mbplacer.build.Placements;
 import dev.sylviromi.mbplacer.build.Resolver;
 import dev.sylviromi.mbplacer.item.PlacerItem;
 import dev.sylviromi.mbplacer.structure.BlockSpec;
@@ -51,6 +53,12 @@ public final class WorldGhost {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
         ItemStack tool = heldTool();
+        if (tool.isEmpty()) return;
+        boolean dismantle = PlacerItem.dismantle(tool);
+        Placements.Rec hovered = PlacerItem.placementLookedAt(mc.player);
+        if (hovered != null) renderPlaced(event, mc, hovered, dismantle);
+        // pointing at a placed multiblock: show it, not a new ghost (unless anchored elsewhere)
+        if (dismantle || hovered != null && PlacerItem.anchor(tool) == null) return;
         Selection sel = PlacerItem.selection(tool);
         PlacerItem.Placement at = tool.isEmpty() || sel.isEmpty() ? null : ClientHooks.currentPlacement(tool);
         if (at == null) return;
@@ -67,20 +75,19 @@ public final class WorldGhost {
             if (!rel.isEmpty()) mesh = new StructureMesh(rel);
         }
         if (mesh == null) return;
-        boolean dismantle = PlacerItem.dismantle(tool), anchored = PlacerItem.anchor(tool) != null;
+        boolean anchored = PlacerItem.anchor(tool) != null;
         BlockPos t = at.target();
-        updateMarked(mc, t, dismantle);
+        updateMarked(mc, t);
 
         PoseStack ps = event.getPoseStack();
         Vec3 cam = event.getCamera().getPosition();
         float pulse = 0.45f + 0.15f * (float) Math.sin((mc.level.getGameTime() + event.getPartialTick()) / 6.0);
         ps.pushPose();
         ps.translate(t.getX() - cam.x, t.getY() - cam.y, t.getZ() - cam.z);
-        if (dismantle) mesh.drawGhost(ps.last().pose(), event.getProjectionMatrix(), 1f, 0.45f, 0.45f, pulse);
-        else mesh.drawGhost(ps.last().pose(), event.getProjectionMatrix(), 0.6f, 0.9f, 1f, pulse);
+        mesh.drawGhost(ps.last().pose(), event.getProjectionMatrix(), 0.6f, 0.9f, 1f, pulse);
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
         var lines = buffers.getBuffer(RenderType.lines());
-        // place mode: red boxes where something is in the way. dismantle mode: red boxes on blocks that will be removed
+        // red boxes where something is in the way
         for (BlockPos p : marked) LevelRenderer.renderLineBox(ps, lines, new AABB(p).deflate(0.02), 1f, 0.3f, 0.3f, 1f);
         if (anchored) LevelRenderer.renderLineBox(ps, lines, relBox.inflate(0.01), 1f, 0.8f, 0.25f, 1f);
         else LevelRenderer.renderLineBox(ps, lines, relBox.inflate(0.01), 0.35f, 0.85f, 1f, 1f);
@@ -89,8 +96,8 @@ public final class WorldGhost {
     }
 
     /** Re-checks the world every 5 ticks or when the target moves (relative positions). */
-    private static void updateMarked(Minecraft mc, BlockPos t, boolean dismantle) {
-        String key = meshKey + t + dismantle;
+    private static void updateMarked(Minecraft mc, BlockPos t) {
+        String key = meshKey + t;
         long now = mc.level.getGameTime();
         if (key.equals(markedKey) && now - markedAt < 5 && now >= markedAt) return;
         markedKey = key;
@@ -99,10 +106,76 @@ public final class WorldGhost {
         for (var e : rel.entrySet()) {
             if (out.size() >= MAX_MARKED) break;
             BlockState world = mc.level.getBlockState(e.getKey().offset(t));
-            boolean mark = dismantle ? world.getBlock() == e.getValue().getBlock() : !world.canBeReplaced();
-            if (mark) out.add(e.getKey());
+            if (!world.canBeReplaced()) out.add(e.getKey());
         }
         marked = out;
+    }
+
+    private static String placedKey = "";
+    private static StructureMesh placedMesh;
+
+    /**
+     * A placed multiblock under the crosshair: its own blocks tinted (red in dismantle mode, stronger while the use key is held)
+     * and corner brackets on its bounds. The tint mesh is scaled up a hair around the centre so it sits just outside the real faces.
+     */
+    private static void renderPlaced(RenderLevelStageEvent event, Minecraft mc, Placements.Rec rec, boolean dismantle) {
+        BlockPos t = rec.target();
+        String key = rec.id() + "|" + rec.selection();
+        if (!key.equals(placedKey)) {
+            placedKey = key;
+            if (placedMesh != null) placedMesh.close();
+            placedMesh = null;
+            var blocks = Dismantler.blocks(Catalog.client, rec);
+            if (blocks != null && !blocks.isEmpty()) {
+                Map<BlockPos, BlockState> relBlocks = new LinkedHashMap<>();
+                blocks.forEach((p, b) -> relBlocks.put(p.subtract(t), b.state()));
+                placedMesh = new StructureMesh(relBlocks);
+            }
+        }
+        AABB box = AABB.of(rec.box()).move(-t.getX(), -t.getY(), -t.getZ());
+        float time = (mc.level.getGameTime() + event.getPartialTick()) / 5f;
+        float progress = Hud.progress(mc, rec);
+        float r = dismantle ? 1f : 0.45f, g = dismantle ? 0.3f : 0.85f, b = dismantle ? 0.3f : 1f;
+        float alpha = (dismantle ? 0.28f : 0.16f) + 0.08f * (float) Math.sin(time) + 0.45f * progress;
+        PoseStack ps = event.getPoseStack();
+        Vec3 cam = event.getCamera().getPosition();
+        ps.pushPose();
+        ps.translate(t.getX() - cam.x, t.getY() - cam.y, t.getZ() - cam.z);
+        if (placedMesh != null) {
+            Vec3 c = box.getCenter();
+            double half = Math.max(0.5, Math.min(box.getXsize(), Math.min(box.getYsize(), box.getZsize())) / 2);
+            float k = (float) (1 + 0.012 / half);
+            ps.pushPose();
+            ps.translate(c.x, c.y, c.z);
+            ps.scale(k, k, k);
+            ps.translate(-c.x, -c.y, -c.z);
+            placedMesh.drawGhost(ps.last().pose(), event.getProjectionMatrix(), r, g, b, alpha);
+            ps.popPose();
+        }
+        MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
+        brackets(ps, buffers.getBuffer(RenderType.lines()), box.inflate(0.03), r, g, b);
+        buffers.endBatch(RenderType.lines());
+        ps.popPose();
+    }
+
+    /** Short lines along the three edges at each corner of the box. */
+    private static void brackets(PoseStack ps, com.mojang.blaze3d.vertex.VertexConsumer vc, AABB box, float r, float g, float b) {
+        double len = Math.min(1.5, Math.min(box.getXsize(), Math.min(box.getYsize(), box.getZsize())) / 3);
+        var pose = ps.last();
+        for (int i = 0; i < 8; i++) {
+            double x = (i & 1) == 0 ? box.minX : box.maxX, y = (i & 2) == 0 ? box.minY : box.maxY, z = (i & 4) == 0 ? box.minZ : box.maxZ;
+            double sx = (i & 1) == 0 ? 1 : -1, sy = (i & 2) == 0 ? 1 : -1, sz = (i & 4) == 0 ? 1 : -1;
+            line(pose, vc, x, y, z, x + sx * len, y, z, r, g, b);
+            line(pose, vc, x, y, z, x, y + sy * len, z, r, g, b);
+            line(pose, vc, x, y, z, x, y, z + sz * len, r, g, b);
+        }
+    }
+
+    private static void line(PoseStack.Pose pose, com.mojang.blaze3d.vertex.VertexConsumer vc, double x1, double y1, double z1, double x2, double y2, double z2,
+                             float r, float g, float b) {
+        float nx = (float) (x2 - x1), ny = (float) (y2 - y1), nz = (float) (z2 - z1), n = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
+        vc.vertex(pose.pose(), (float) x1, (float) y1, (float) z1).color(r, g, b, 1f).normal(pose.normal(), nx / n, ny / n, nz / n).endVertex();
+        vc.vertex(pose.pose(), (float) x2, (float) y2, (float) z2).color(r, g, b, 1f).normal(pose.normal(), nx / n, ny / n, nz / n).endVertex();
     }
 
     static ItemStack heldTool() {

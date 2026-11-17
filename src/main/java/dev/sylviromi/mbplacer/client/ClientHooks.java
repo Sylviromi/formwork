@@ -4,6 +4,9 @@ import com.mojang.blaze3d.platform.InputConstants;
 import dev.sylviromi.mbplacer.MbPlacer;
 import dev.sylviromi.mbplacer.item.PlacerItem;
 import dev.sylviromi.mbplacer.net.Net;
+import dev.sylviromi.mbplacer.build.Placements;
+import dev.sylviromi.mbplacer.structure.Catalog;
+import dev.sylviromi.mbplacer.structure.Selection;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.nbt.CompoundTag;
@@ -27,8 +30,21 @@ public final class ClientHooks {
     private ClientHooks() {
     }
 
+    /** Pointing at a placed multiblock: edit it. Else the editor for the tool's multiblock, or the browser when nothing (known) is selected. */
     public static void openScreen() {
-        Minecraft.getInstance().setScreen(new PlacerScreen());
+        Minecraft mc = Minecraft.getInstance();
+        Placements.Rec placed = PlacerItem.placementLookedAt(mc.player);
+        if (placed != null) {
+            String placedId = Selection.load(placed.selection()).entry();
+            var entry = Catalog.client.entries().stream().filter(e -> e.members().contains(placedId)).findFirst();
+            if (entry.isPresent()) {
+                mc.setScreen(new EditorScreen(entry.get(), placed));
+                return;
+            }
+        }
+        String current = PlacerItem.selection(WorldGhost.heldTool()).entry();
+        Minecraft.getInstance().setScreen(Catalog.client.entries().stream().filter(e -> e.members().contains(current)).findFirst()
+                .<net.minecraft.client.gui.screens.Screen>map(EditorScreen::new).orElseGet(BrowserScreen::new));
     }
 
     @Mod.EventBusSubscriber(modid = MbPlacer.ID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)

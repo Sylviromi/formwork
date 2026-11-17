@@ -3,6 +3,8 @@ package dev.sylviromi.mbplacer.net;
 import dev.sylviromi.mbplacer.MbPlacer;
 import dev.sylviromi.mbplacer.ae2.AeLink;
 import dev.sylviromi.mbplacer.build.Materials;
+import dev.sylviromi.mbplacer.build.Placements;
+import dev.sylviromi.mbplacer.build.Updater;
 import dev.sylviromi.mbplacer.build.Resolver;
 import dev.sylviromi.mbplacer.item.PlacerItem;
 import dev.sylviromi.mbplacer.structure.BlockSpec;
@@ -30,7 +32,7 @@ import java.util.function.Supplier;
 
 /** All packets. Server to client: catalog sync and material reports. Client to server: selection, report query, craft request. */
 public final class Net {
-    private static final String VERSION = "2";
+    private static final String VERSION = "4";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(MbPlacer.ID, "main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -44,11 +46,12 @@ public final class Net {
                 buf.writeUtf(v.id());
                 buf.writeCollection(v.blocks(), FriendlyByteBuf::writeUtf);
                 buf.writeUtf(v.match());
+                buf.writeVarInt(v.columns());
             });
         }
 
         static CatalogReset read(FriendlyByteBuf b) {
-            return new CatalogReset(b.readList(buf -> new VariantSet(buf.readUtf(), buf.readList(FriendlyByteBuf::readUtf), buf.readUtf())));
+            return new CatalogReset(b.readList(buf -> new VariantSet(buf.readUtf(), buf.readList(FriendlyByteBuf::readUtf), buf.readUtf(), buf.readVarInt())));
         }
     }
 
@@ -103,6 +106,30 @@ public final class Net {
         }
     }
 
+    /** All placements in the player's dimension (see build/Placements). */
+    public record PlacementsSync(List<Placements.Rec> recs) {
+        void write(FriendlyByteBuf b) {
+            b.writeCollection(recs, (buf, r) -> buf.writeNbt(r.save()));
+        }
+
+        static PlacementsSync read(FriendlyByteBuf b) {
+            return new PlacementsSync(b.readList(buf -> Placements.Rec.load(buf.readNbt())));
+        }
+    }
+
+    /** Editing a placed multiblock: preview asks for the change's material report, apply performs it. */
+    public record UpdatePlaced(UUID placement, CompoundTag selection, boolean apply) {
+        void write(FriendlyByteBuf b) {
+            b.writeUUID(placement);
+            b.writeNbt(selection);
+            b.writeBoolean(apply);
+        }
+
+        static UpdatePlaced read(FriendlyByteBuf b) {
+            return new UpdatePlaced(b.readUUID(), b.readNbt(), b.readBoolean());
+        }
+    }
+
     public record RequestCrafts() {
     }
 
@@ -131,6 +158,10 @@ public final class Net {
                 .encoder(SetSelection::write).decoder(SetSelection::read).consumerMainThread(Net::onSetSelection).add();
         CHANNEL.messageBuilder(RequestCrafts.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder((m, b) -> {}).decoder(b -> new RequestCrafts()).consumerMainThread(Net::onRequestCrafts).add();
+        CHANNEL.messageBuilder(PlacementsSync.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(PlacementsSync::write).decoder(PlacementsSync::read).consumerMainThread((m, ctx) -> { ClientData.placements = m.recs(); }).add();
+        CHANNEL.messageBuilder(UpdatePlaced.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(UpdatePlaced::write).decoder(UpdatePlaced::read).consumerMainThread(Net::onUpdatePlaced).add();
         CHANNEL.messageBuilder(SetPlacement.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(SetPlacement::write).decoder(SetPlacement::read).consumerMainThread(Net::onSetPlacement).add();
     }
@@ -144,6 +175,11 @@ public final class Net {
             CHANNEL.send(target, new CatalogReset(List.copyOf(c.variants.values())));
             c.blueprints.values().forEach(bp -> CHANNEL.send(target, new BlueprintSync(bp)));
         }
+    }
+
+    /** On login and dimension change: the placements of the player's new dimension. */
+    public static void syncPlacements(ServerPlayer p) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new PlacementsSync(List.copyOf(Placements.of(p.serverLevel()).all())));
     }
 
     // ---- handlers ----
@@ -185,6 +221,22 @@ public final class Net {
         ServerPlayer p = ctx.get().getSender();
         ItemStack tool = p == null ? ItemStack.EMPTY : heldTool(p);
         if (!tool.isEmpty() && m.placement() != null) PlacerItem.applyPlacement(tool, m.placement(), p.blockPosition());
+    }
+
+    private static void onUpdatePlaced(UpdatePlaced m, Supplier<NetworkEvent.Context> ctx) {
+        ServerPlayer p = ctx.get().getSender();
+        ItemStack tool = p == null ? ItemStack.EMPTY : heldTool(p);
+        if (tool.isEmpty() || m.selection() == null) return;
+        Selection sel = Selection.load(m.selection());
+        if (m.apply()) {
+            Updater.apply(p, tool, m.placement(), sel);
+            return;
+        }
+        Placements.of(p.serverLevel()).all().stream().filter(r -> r.id().equals(m.placement())).findFirst().ifPresent(rec -> {
+            Updater.Plan plan = Updater.plan(p.serverLevel(), rec, sel);
+            if (plan != null) CHANNEL.send(PacketDistributor.PLAYER.with(() -> p),
+                    new Report(Materials.meStatus(p, tool), sel.entry(), plan.all().size(), Updater.report(p, tool, plan)));
+        });
     }
 
     /** Material report for the tool's current selection. */

@@ -1,7 +1,7 @@
 {
   "match": "voidminer",
+  "columns": 3,
   "blocks": [
-    "voidminers:null_modifier",
     "voidminers:rubetine_energy_modifier",
     "voidminers:rubetine_speed_modifier",
     "voidminers:rubetine_item_modifier",
@@ -28,6 +28,7 @@
     "voidminers:rosarium_item_modifier",
     "voidminers:ultimate_energy_modifier",
     "voidminers:ultimate_speed_modifier",
-    "voidminers:ultimate_item_modifier"
+    "voidminers:ultimate_item_modifier",
+    "voidminers:null_modifier"
   ]
 }

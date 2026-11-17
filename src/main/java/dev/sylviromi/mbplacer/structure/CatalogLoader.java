@@ -63,7 +63,8 @@ public class CatalogLoader extends SimplePreparableReloadListener<Catalog> {
                     String block = b.getAsString().trim();
                     if (isBlock(block)) blocks.add(block);
                 }
-                if (blocks.size() > 1) catalog.addVariants(new VariantSet(id, List.copyOf(blocks), match));
+                int columns = json.has("columns") ? json.get("columns").getAsInt() : 0;
+                if (blocks.size() > 1) catalog.addVariants(new VariantSet(id, List.copyOf(blocks), match, columns));
             } catch (Exception ex) {
                 MbPlacer.LOG.warn("Could not read variant set {}", rl, ex);
             }

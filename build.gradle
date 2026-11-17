@@ -37,7 +37,8 @@ repositories {
 }
 
 // Pack jars that are not on any maven, renamed to <id>-1.jar. Run `./gradlew copyPackMods` once.
-def packJars = ['voidminers': 'voidminers-', 'mangomultiblock': 'mangomultiblock-', 'mm': 'MasterfulMachinery-', 'guideme': 'guideme-']
+def packJars = ['voidminers': 'voidminers-', 'mangomultiblock': 'mangomultiblock-', 'mm': 'MasterfulMachinery-', 'guideme': 'guideme-',
+                'kubejs': 'kubejs-forge-', 'rhino': 'rhino-forge-', 'architectury': 'architectury-'] // KubeJS registers the pack's MM ports and controllers
 
 tasks.register('copyPackMods', Copy) {
     from(pack_mods) { packJars.each { id, prefix -> include "${prefix}*.jar" } }

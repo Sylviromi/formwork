@@ -25,8 +25,8 @@ class VariantTest {
 
     private static Catalog catalog() {
         Catalog c = new Catalog();
-        c.addVariants(new VariantSet("mbplacer:solar_modifiers", List.of(NULL, "voidminers:solar_verdium_weather_modifier"), "solar"));
-        c.addVariants(new VariantSet("mbplacer:voidminer_modifiers", List.of(NULL, SPEED, ENERGY), "voidminer"));
+        c.addVariants(new VariantSet("mbplacer:solar_modifiers", List.of(NULL, "voidminers:solar_verdium_weather_modifier"), "solar", 0));
+        c.addVariants(new VariantSet("mbplacer:voidminer_modifiers", List.of(NULL, SPEED, ENERGY), "voidminer", 0));
         return c;
     }
 

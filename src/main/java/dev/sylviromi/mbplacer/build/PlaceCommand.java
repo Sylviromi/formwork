@@ -60,7 +60,9 @@ public final class PlaceCommand {
             return 0;
         }
         var blocks = Resolver.world(specs, pos, Direction.NORTH);
-        Placer.put(c.getSource().getLevel(), blocks, null);
+        var level = c.getSource().getLevel();
+        Placer.put(level, blocks, null);
+        Placements.of(level).add(level, Placements.record(blocks, sel.save(), pos, Direction.NORTH, null));
         c.getSource().sendSuccess(() -> Component.literal("Placed " + blocks.size() + " blocks of " + entry), true);
         return blocks.size();
     }

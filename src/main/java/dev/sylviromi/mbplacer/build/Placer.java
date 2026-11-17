@@ -64,6 +64,7 @@ public final class Placer {
             }
         }
         put(level, blocks, player);
+        Placements.of(level).add(level, Placements.record(blocks, sel.save(), target, facing, player.getUUID()));
         player.displayClientMessage(Component.translatable("mbplacer.msg.placed", blocks.size()), true);
     }
 

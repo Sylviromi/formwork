@@ -1,7 +1,12 @@
 package dev.sylviromi.mbplacer.item;
 
 import dev.sylviromi.mbplacer.build.Dismantler;
+import dev.sylviromi.mbplacer.build.Placements;
 import dev.sylviromi.mbplacer.build.Placer;
+import dev.sylviromi.mbplacer.net.ClientData;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.UseAnim;
 import dev.sylviromi.mbplacer.structure.Catalog;
 import dev.sylviromi.mbplacer.structure.Selection;
 import net.minecraft.ChatFormatting;
@@ -131,7 +136,7 @@ public class PlacerItem extends Item {
         t.putBoolean(DISMANTLE, in.getBoolean(DISMANTLE));
     }
 
-    /** Places or dismantles at the current placement. */
+    /** Places at the current placement. */
     private static void act(ServerPlayer player, ItemStack tool, @Nullable BlockHitResult hit) {
         Placement p = placement(tool, player.level(), hit, player.getDirection());
         if (p == null) return;
@@ -139,8 +144,48 @@ public class PlacerItem extends Item {
             player.displayClientMessage(Component.translatable("mbplacer.msg.too_far").withStyle(ChatFormatting.RED), true);
             return;
         }
-        if (dismantle(tool)) Dismantler.dismantle(player, tool, p.target(), p.facing());
-        else Placer.place(player, tool, p.target(), p.facing());
+        Placer.place(player, tool, p.target(), p.facing());
+    }
+
+    // ---- dismantle: hold use on a placed multiblock, like breaking a block ----
+
+    /** The block the player looks at within reach, or null. */
+    @Nullable
+    public static BlockPos lookedAt(Player player) {
+        return player.pick(player.getBlockReach(), 1, false) instanceof BlockHitResult hit && hit.getType() == HitResult.Type.BLOCK ? hit.getBlockPos() : null;
+    }
+
+    /** The placement the player looks at; each side uses its own copy of the records. */
+    @Nullable
+    public static Placements.Rec placementLookedAt(Player player) {
+        BlockPos pos = lookedAt(player);
+        if (pos == null) return null;
+        var recs = player.level() instanceof ServerLevel sl ? Placements.of(sl).all() : ClientData.placements;
+        return Placements.at(recs, pos);
+    }
+
+    @Override
+    public int getUseDuration(ItemStack stack) {
+        return 72000;
+    }
+
+    @Override
+    public UseAnim getUseAnimation(ItemStack stack) {
+        return UseAnim.NONE;
+    }
+
+    @Override
+    public void onUseTick(Level level, LivingEntity entity, ItemStack stack, int remaining) {
+        if (!(entity instanceof ServerPlayer sp)) return;
+        Placements.Rec rec = placementLookedAt(sp);
+        if (rec == null) {
+            sp.stopUsingItem(); // looked away: cancelled
+            return;
+        }
+        if (getUseDuration(stack) - remaining >= Placements.dismantleTicks(rec)) {
+            Dismantler.dismantle(sp, stack, lookedAt(sp));
+            sp.stopUsingItem();
+        }
     }
 
     @Override
@@ -149,6 +194,14 @@ public class PlacerItem extends Item {
         if (player.isShiftKeyDown()) {
             if (level.isClientSide) openScreen();
             return InteractionResultHolder.sidedSuccess(tool, level.isClientSide);
+        }
+        if (dismantle(tool)) {
+            if (placementLookedAt(player) == null) {
+                if (player instanceof ServerPlayer sp) sp.displayClientMessage(Component.translatable("mbplacer.msg.not_placed").withStyle(ChatFormatting.RED), true);
+                return InteractionResultHolder.fail(tool);
+            }
+            player.startUsingItem(hand);
+            return InteractionResultHolder.consume(tool);
         }
         if (anchor(tool) == null) return InteractionResultHolder.pass(tool);
         // anchored: works without looking at a block
@@ -164,6 +217,7 @@ public class PlacerItem extends Item {
             if (ctx.getLevel().isClientSide) openScreen();
             return InteractionResult.sidedSuccess(ctx.getLevel().isClientSide);
         }
+        if (dismantle(ctx.getItemInHand())) return InteractionResult.PASS; // handled by use(): hold to dismantle
         if (player instanceof ServerPlayer sp)
             act(sp, ctx.getItemInHand(), new BlockHitResult(ctx.getClickLocation(), ctx.getClickedFace(), ctx.getClickedPos(), ctx.isInside()));
         return InteractionResult.sidedSuccess(ctx.getLevel().isClientSide);

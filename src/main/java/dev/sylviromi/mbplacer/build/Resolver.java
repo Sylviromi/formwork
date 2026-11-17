@@ -72,6 +72,11 @@ public final class Resolver {
         return out;
     }
 
+    /** Clockwise quarter turns from base that make a structure face d (the placement card's compass). */
+    public static int turnsTo(Direction base, Direction d) {
+        return Math.floorMod(d.get2DDataValue() - base.get2DDataValue(), 4);
+    }
+
     public static Rotation rotationFor(Direction facing) {
         return switch (facing) {
             case EAST -> Rotation.CLOCKWISE_90;
