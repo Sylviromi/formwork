@@ -11,10 +11,7 @@ import appeng.api.stacks.AEItemKey;
 import appeng.core.definitions.AEItems;
 import appeng.helpers.WirelessTerminalMenuHost;
 import appeng.menu.locator.MenuLocators;
-import appeng.api.networking.crafting.CalculationStrategy;
-import appeng.menu.MenuOpener;
 import appeng.menu.me.crafting.CraftAmountMenu;
-import appeng.menu.me.crafting.CraftConfirmMenu;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.nbt.NbtOps;
@@ -165,8 +162,8 @@ public final class AeLink {
     private static final Map<UUID, Queued> QUEUES = new HashMap<>();
 
     /**
-     * AE2's normal crafting plan screen (as after its amount screen) for each missing item in turn; Start or Cancel there moves
-     * on to the next one, the last one returns to the editor. Items the network is already crafting are skipped.
+     * Clicks every missing row in turn: AE2's amount screen for each item; Start (or Back) there moves on to the next one,
+     * the last one returns to the editor. Items the network is already crafting are skipped.
      */
     public static void openCraftAll(ServerPlayer player, InteractionHand hand, Map<Item, Integer> amounts) {
         IGridNode node = node(player, player.getItemInHand(hand));
@@ -186,10 +183,8 @@ public final class AeLink {
             QUEUES.remove(player.getUUID());
             return false;
         }
-        MenuOpener.open(CraftConfirmMenu.TYPE, player, MenuLocators.forHand(player, q.hand()));
-        if (!(player.containerMenu instanceof CraftConfirmMenu menu) || !menu.planJob(AEItemKey.of(next.getKey()), next.getValue(), CalculationStrategy.REPORT_MISSING_ITEMS))
-            return openNext(player);
-        menu.broadcastChanges();
+        // exactly what clicking the row does: AE2's amount screen, then its plan and Start
+        CraftAmountMenu.open(player, MenuLocators.forHand(player, q.hand()), AEItemKey.of(next.getKey()), Math.max(1, next.getValue()));
         return true;
     }
 
