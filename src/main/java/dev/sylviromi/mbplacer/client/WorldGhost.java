@@ -54,11 +54,12 @@ public final class WorldGhost {
         if (mc.player == null || mc.level == null) return;
         ItemStack tool = heldTool();
         if (tool.isEmpty()) return;
-        boolean dismantle = PlacerItem.dismantle(tool);
         Placements.Rec hovered = PlacerItem.placementLookedAt(mc.player);
-        if (hovered != null) renderPlaced(event, mc, hovered, dismantle);
-        // pointing at a placed multiblock: show it, not a new ghost (unless anchored elsewhere)
-        if (dismantle || hovered != null && PlacerItem.anchor(tool) == null) return;
+        // pointing at a placed multiblock: show it instead of a new ghost
+        if (hovered != null) {
+            renderPlaced(event, mc, hovered);
+            return;
+        }
         Selection sel = PlacerItem.selection(tool);
         PlacerItem.Placement at = tool.isEmpty() || sel.isEmpty() ? null : ClientHooks.currentPlacement(tool);
         if (at == null) return;
@@ -115,10 +116,10 @@ public final class WorldGhost {
     private static StructureMesh placedMesh;
 
     /**
-     * A placed multiblock under the crosshair: its own blocks tinted (red in dismantle mode, stronger while the use key is held)
+     * A placed multiblock under the crosshair: its own blocks tinted (red and stronger while the use key is held)
      * and corner brackets on its bounds. The tint mesh is scaled up a hair around the centre so it sits just outside the real faces.
      */
-    private static void renderPlaced(RenderLevelStageEvent event, Minecraft mc, Placements.Rec rec, boolean dismantle) {
+    private static void renderPlaced(RenderLevelStageEvent event, Minecraft mc, Placements.Rec rec) {
         BlockPos t = rec.target();
         String key = rec.id() + "|" + rec.selection();
         if (!key.equals(placedKey)) {
@@ -135,8 +136,9 @@ public final class WorldGhost {
         AABB box = AABB.of(rec.box()).move(-t.getX(), -t.getY(), -t.getZ());
         float time = (mc.level.getGameTime() + event.getPartialTick()) / 5f;
         float progress = Hud.progress(mc, rec);
-        float r = dismantle ? 1f : 0.45f, g = dismantle ? 0.3f : 0.85f, b = dismantle ? 0.3f : 1f;
-        float alpha = (dismantle ? 0.28f : 0.16f) + 0.08f * (float) Math.sin(time) + 0.45f * progress;
+        // cyan while pointing, turning red while the use key is held to dismantle
+        float r = 0.45f + 0.55f * progress, g = 0.85f - 0.55f * progress, b = 1f - 0.7f * progress;
+        float alpha = 0.16f + 0.06f * (float) Math.sin(time) + 0.45f * progress;
         PoseStack ps = event.getPoseStack();
         Vec3 cam = event.getCamera().getPosition();
         ps.pushPose();
@@ -153,14 +155,14 @@ public final class WorldGhost {
             ps.popPose();
         }
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
-        brackets(ps, buffers.getBuffer(RenderType.lines()), box.inflate(0.03), r, g, b);
+        brackets(ps, buffers.getBuffer(RenderType.lines()), box.inflate(0.004), r, g, b);
         buffers.endBatch(RenderType.lines());
         ps.popPose();
     }
 
     /** Short lines along the three edges at each corner of the box. */
     private static void brackets(PoseStack ps, com.mojang.blaze3d.vertex.VertexConsumer vc, AABB box, float r, float g, float b) {
-        double len = Math.min(1.5, Math.min(box.getXsize(), Math.min(box.getYsize(), box.getZsize())) / 3);
+        double len = Math.min(1, Math.min(box.getXsize(), Math.min(box.getYsize(), box.getZsize())) / 4);
         var pose = ps.last();
         for (int i = 0; i < 8; i++) {
             double x = (i & 1) == 0 ? box.minX : box.maxX, y = (i & 2) == 0 ? box.minY : box.maxY, z = (i & 4) == 0 ? box.minZ : box.maxZ;

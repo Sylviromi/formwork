@@ -57,7 +57,7 @@ public class PlacerItem extends Item {
     }
 
     // ---- placement settings: anchor, offset, rotation, mode. Same tag on both sides; the client sends it with Net.SetPlacement ----
-    public static final String ANCHOR = "anchor", ANCHOR_FACING = "anchorFacing", OFFSET = "offset", ROTATION = "rotation", DISMANTLE = "dismantle";
+    public static final String ANCHOR = "anchor", ANCHOR_FACING = "anchorFacing", OFFSET = "offset", ROTATION = "rotation";
     public static final int MAX_OFFSET = 64, MAX_ANCHOR_DISTANCE = 128;
 
     public record Placement(BlockPos target, Direction facing) {
@@ -90,10 +90,6 @@ public class PlacerItem extends Item {
         return tool.getTag() == null ? 0 : tool.getTag().getInt(ROTATION);
     }
 
-    public static boolean dismantle(ItemStack tool) {
-        return tool.getTag() != null && tool.getTag().getBoolean(DISMANTLE);
-    }
-
     /** The placement settings as one tag (what the client edits and sends). */
     public static CompoundTag placementTag(ItemStack tool) {
         CompoundTag out = new CompoundTag();
@@ -104,7 +100,6 @@ public class PlacerItem extends Item {
         }
         out.putIntArray(OFFSET, offset(tool));
         out.putInt(ROTATION, rotation(tool));
-        out.putBoolean(DISMANTLE, dismantle(tool));
         return out;
     }
 
@@ -133,7 +128,6 @@ public class PlacerItem extends Item {
         for (int i = 0; i < 3 && o.length == 3; i++) clamped[i] = Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, o[i]));
         t.putIntArray(OFFSET, clamped);
         t.putInt(ROTATION, Math.floorMod(in.getInt(ROTATION), 4));
-        t.putBoolean(DISMANTLE, in.getBoolean(DISMANTLE));
     }
 
     /** Places at the current placement. */
@@ -195,11 +189,8 @@ public class PlacerItem extends Item {
             if (level.isClientSide) openScreen();
             return InteractionResultHolder.sidedSuccess(tool, level.isClientSide);
         }
-        if (dismantle(tool)) {
-            if (placementLookedAt(player) == null) {
-                if (player instanceof ServerPlayer sp) sp.displayClientMessage(Component.translatable("mbplacer.msg.not_placed").withStyle(ChatFormatting.RED), true);
-                return InteractionResultHolder.fail(tool);
-            }
+        // pointing at a placed multiblock: hold to dismantle it
+        if (placementLookedAt(player) != null) {
             player.startUsingItem(hand);
             return InteractionResultHolder.consume(tool);
         }
@@ -217,7 +208,7 @@ public class PlacerItem extends Item {
             if (ctx.getLevel().isClientSide) openScreen();
             return InteractionResult.sidedSuccess(ctx.getLevel().isClientSide);
         }
-        if (dismantle(ctx.getItemInHand())) return InteractionResult.PASS; // handled by use(): hold to dismantle
+        if (placementLookedAt(player) != null) return InteractionResult.PASS; // use() handles it: hold to dismantle
         if (player instanceof ServerPlayer sp)
             act(sp, ctx.getItemInHand(), new BlockHitResult(ctx.getClickLocation(), ctx.getClickedFace(), ctx.getClickedPos(), ctx.isInside()));
         return InteractionResult.sidedSuccess(ctx.getLevel().isClientSide);
@@ -234,7 +225,6 @@ public class PlacerItem extends Item {
         boolean linked = stack.getTag() != null && stack.getTag().contains(AE_LINK);
         tooltip.add(Component.translatable(linked ? "mbplacer.tooltip.linked" : "mbplacer.tooltip.unlinked").withStyle(ChatFormatting.GRAY));
         if (anchor(stack) != null) tooltip.add(Component.translatable("mbplacer.tooltip.anchored").withStyle(ChatFormatting.YELLOW));
-        if (dismantle(stack)) tooltip.add(Component.translatable("mbplacer.tooltip.dismantle").withStyle(ChatFormatting.RED));
         tooltip.add(Component.translatable("mbplacer.tooltip.usage").withStyle(ChatFormatting.DARK_GRAY));
     }
 

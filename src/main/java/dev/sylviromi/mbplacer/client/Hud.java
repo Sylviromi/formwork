@@ -24,10 +24,10 @@ final class Hud {
     private Hud() {
     }
 
-    /** 0..1 while the use key is held in dismantle mode on this placement. */
+    /** 0..1 while the use key is held on this placement (dismantling). */
     static float progress(Minecraft mc, Placements.Rec rec) {
         var p = mc.player;
-        if (p == null || !p.isUsingItem() || !(p.getUseItem().getItem() instanceof PlacerItem) || !PlacerItem.dismantle(p.getUseItem())) return 0;
+        if (p == null || !p.isUsingItem() || !(p.getUseItem().getItem() instanceof PlacerItem)) return 0;
         return Math.min(1, (p.getTicksUsingItem() + mc.getFrameTime()) / Placements.dismantleTicks(rec));
     }
 
@@ -41,15 +41,14 @@ final class Hud {
         GuiGraphics g = e.getGuiGraphics();
         var font = mc.font;
         int cx = g.guiWidth() / 2, y = g.guiHeight() / 2 + 12;
-        boolean dismantle = PlacerItem.dismantle(tool);
         Component name = PlacerItem.displayName(Selection.load(rec.selection()).entry());
-        Component hint = Component.translatable(dismantle ? "mbplacer.hud.dismantle" : "mbplacer.hud.edit");
+        Component hint = Component.translatable("mbplacer.hud.hint");
         int w = Math.max(font.width(name), Math.max(font.width(hint), BAR_W)) + 10;
         float progress = progress(mc, rec);
         int h = progress > 0 ? 30 : 24;
         g.fill(cx - w / 2, y - 3, cx + w / 2, y + h - 3, 0xB00D1117);
-        g.renderOutline(cx - w / 2, y - 3, w, h, dismantle ? 0xFF7A3434 : BORDER);
-        g.drawCenteredString(font, name, cx, y, dismantle ? RED : ACCENT);
+        g.renderOutline(cx - w / 2, y - 3, w, h, progress > 0 ? 0xFF7A3434 : BORDER);
+        g.drawCenteredString(font, name, cx, y, progress > 0 ? RED : ACCENT);
         g.drawCenteredString(font, hint, cx, y + 11, DIM);
         if (progress > 0) {
             g.fill(cx - BAR_W / 2, y + 21, cx + BAR_W / 2, y + 24, CELL);

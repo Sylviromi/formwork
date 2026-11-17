@@ -153,7 +153,6 @@ public final class DevHooks {
     private static void setDismantle(boolean on) {
         ItemStack tool = WorldGhost.heldTool();
         CompoundTag t = PlacerItem.placementTag(tool);
-        t.putBoolean(PlacerItem.DISMANTLE, on);
         ClientHooks.setPlacement(tool, t);
     }
 

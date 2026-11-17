@@ -17,7 +17,7 @@ import java.util.function.Consumer;
 import static dev.sylviromi.mbplacer.client.Ui.*;
 
 /**
- * Compact see-through placement card: anchor, facing compass, nudge pad, mode. The ghost moves live behind it.
+ * Compact see-through placement card: anchor, facing compass, nudge pad. The ghost moves live behind it.
  * Arrow keys move relative to where the player looks, Page Up/Down vertically, R turns. Shift moves by 10.
  */
 public class PlacementScreen extends Screen {
@@ -25,7 +25,7 @@ public class PlacementScreen extends Screen {
     private final List<Btn> buttons = new ArrayList<>();
     private int x0, y0, h;
 
-    private static final int NORMAL = 0, DANGER = 1, ANCHOR = 2;
+    private static final int NORMAL = 0, ANCHOR = 2;
 
     /** A button with a text label or an icon; on() highlights it in its style's colour. */
     private record Btn(int x, int y, int w, String label, Icon icon, Component tip, BooleanSupplier on, Runnable action, int style) {
@@ -93,7 +93,7 @@ public class PlacementScreen extends Screen {
     @Override
     protected void init() {
         buttons.clear();
-        h = 124;
+        h = 106;
         x0 = 8;
         y0 = (height - h) / 2;
         int x = x0 + 6, right = x0 + W - 6;
@@ -117,11 +117,6 @@ public class PlacementScreen extends Screen {
             t.putIntArray(PlacerItem.OFFSET, new int[3]);
             t.putInt(PlacerItem.ROTATION, 0);
         }), NORMAL);
-        int my = y0 + h - B - 6, mw = (W - 14) / 2;
-        text(x, my, mw, Component.translatable("mbplacer.gui.place").getString(), Component.translatable("mbplacer.gui.place_tip"),
-                () -> !PlacerItem.dismantle(tool()), () -> edit(t -> t.putBoolean(PlacerItem.DISMANTLE, false)), NORMAL);
-        text(right - mw, my, mw, Component.translatable("mbplacer.gui.dismantle").getString(), Component.translatable("mbplacer.gui.dismantle_tip"),
-                () -> PlacerItem.dismantle(tool()), () -> edit(t -> t.putBoolean(PlacerItem.DISMANTLE, true)), DANGER);
     }
 
     @Override
@@ -135,11 +130,11 @@ public class PlacementScreen extends Screen {
         g.renderOutline(x0, y0, W, h, BORDER);
         g.drawString(font, title, x0 + 6, y0 + 8, ACCENT, false);
         int[] o = PlacerItem.offset(tool());
-        g.drawCenteredString(font, "x " + o[0] + "  y " + o[1] + "  z " + o[2], x0 + W / 2, y0 + 91, DIM);
+        g.drawCenteredString(font, "x " + o[0] + "  y " + o[1] + "  z " + o[2], x0 + W / 2, y0 + 93, DIM);
         for (Btn b : buttons) {
             boolean hover = b.over(mx, my), on = b.on().getAsBoolean();
-            int fill = !on ? (hover ? BTN_HOVER : BTN) : b.style() == DANGER ? 0xFF6B2B2B : b.style() == ANCHOR ? 0xFF6B5A1F : BTN_ON;
-            int edge = on ? (b.style() == DANGER ? RED : b.style() == ANCHOR ? YELLOW : ACCENT) : hover ? ACCENT : BORDER;
+            int fill = !on ? (hover ? BTN_HOVER : BTN) : b.style() == ANCHOR ? 0xFF6B5A1F : BTN_ON;
+            int edge = on ? (b.style() == ANCHOR ? YELLOW : ACCENT) : hover ? ACCENT : BORDER;
             g.fill(b.x(), b.y(), b.x() + b.w(), b.y() + B, fill);
             g.renderOutline(b.x(), b.y(), b.w(), B, edge);
             int color = on && b.style() == ANCHOR ? YELLOW : hover ? 0xFFFFFFFF : TEXT;
