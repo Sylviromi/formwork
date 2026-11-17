@@ -1,0 +1,10 @@
+{
+  "blocks": [
+    "mm:tiny_energy_port_input",
+    "mm:small_energy_port_input",
+    "mm:normal_energy_port_input",
+    "mm:big_energy_port_input",
+    "mm:enormous_energy_port_input",
+    "mm:gigantic_energy_port_input"
+  ]
+}

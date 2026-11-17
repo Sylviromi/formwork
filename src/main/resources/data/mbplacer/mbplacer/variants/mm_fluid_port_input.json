@@ -1,0 +1,9 @@
+{
+  "blocks": [
+    "mm:small_fluid_port_input",
+    "mm:normal_fluid_port_input",
+    "mm:big_fluid_port_input",
+    "mm:enormous_fluid_port_input",
+    "mm:gigantic_fluid_port_input"
+  ]
+}

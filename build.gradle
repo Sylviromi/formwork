@@ -1,0 +1,64 @@
+plugins {
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
+}
+
+version = mod_version
+group = 'dev.sylviromi.mbplacer'
+base.archivesName = "mbplacer-${mc_version}"
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+minecraft {
+    mappings channel: 'parchment', version: "${mappings_version}-${mc_version}"
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.console.level', 'info'
+            mods { mbplacer { source sourceSets.main } }
+        }
+        client {}
+        server { args '--nogui' }
+    }
+}
+
+repositories {
+    maven { url 'https://modmaven.dev/' }            // AE2, Mekanism
+    maven { url 'https://maven.blamejared.com' }     // JEI
+    flatDir { dir 'libs' }                           // pack jars, see copyPackMods
+}
+
+// Pack jars that are not on any maven, renamed to <id>-1.jar. Run `./gradlew copyPackMods` once.
+def packJars = ['voidminers': 'voidminers-', 'mangomultiblock': 'mangomultiblock-', 'mm': 'MasterfulMachinery-']
+
+tasks.register('copyPackMods', Copy) {
+    from(pack_mods) { packJars.each { id, prefix -> include "${prefix}*.jar" } }
+    into 'libs'
+    rename { name -> (packJars.find { id, prefix -> name.startsWith(prefix) }.key) + '-1.jar' }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${mc_version}-${forge_version}"
+
+    compileOnly fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}:api")
+    runtimeOnly fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}")
+    runtimeOnly fg.deobf("mezz.jei:jei-${mc_version}-forge:${jei_version}")
+    runtimeOnly fg.deobf("mekanism:Mekanism:${mc_version}-${mekanism_version}")
+    runtimeOnly fg.deobf("mekanism:Mekanism:${mc_version}-${mekanism_version}:generators")
+    packJars.keySet().each { id ->
+        if (file("libs/${id}-1.jar").exists()) runtimeOnly fg.deobf("local:${id}:1")
+    }
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test { useJUnitPlatform() }
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+
+processResources {
+    inputs.property 'version', version
+    filesMatching('META-INF/mods.toml') { expand version: version }
+}
+
+jar.finalizedBy 'reobfJar'

@@ -1,0 +1,14 @@
+{
+  "blocks": [
+    "mm:tiny_item_port_output",
+    "mm:small_item_port_output",
+    "mm:normal_item_port_output",
+    "mm:big_item_port_output",
+    "mm:enormous_item_port_output",
+    "mm:gigantic_item_port_output",
+    "mm:colossal_item_port_output",
+    "mm:titanic_item_port_output",
+    "mm:compressed_titanic_item_port_output",
+    "mm:super_compressed_titanic_item_port_output"
+  ]
+}

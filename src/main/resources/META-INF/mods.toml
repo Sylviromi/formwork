@@ -1,0 +1,31 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "MIT"
+
+[[mods]]
+modId = "mbplacer"
+version = "${version}"
+displayName = "Multiblock Placer"
+authors = "Sylviromi"
+description = "Place multiblocks from your inventory or ME network, with variants, sizes and tiers."
+
+[[dependencies.mbplacer]]
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.mbplacer]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1,1.20.2)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.mbplacer]]
+modId = "ae2"
+mandatory = false
+versionRange = "[15.4,)"
+ordering = "AFTER"
+side = "BOTH"
