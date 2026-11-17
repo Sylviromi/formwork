@@ -57,6 +57,7 @@
   "mbplacer.gui.turn_right": "Turn the view right",
   "mbplacer.gui.editing": "Editing: %s",
   "mbplacer.gui.apply": "Apply",
+  "mbplacer.gui.apply_missing": "%s materials are missing (see Materials). Crafts still running don't count until they finish.",
   "mbplacer.gui.apply_tip": "Swap only the blocks that change. Materials shows what it costs.",
   "mbplacer.msg.updated": "Updated: %s blocks removed, %s placed",
   "mbplacer.gui.backward": "Back (Down arrow)",

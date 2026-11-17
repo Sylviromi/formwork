@@ -304,6 +304,12 @@ public class EditorScreen extends Screen {
         return r.crafting() + "%" + (r.eta() < 0 ? "" : r.eta() >= 60 ? " ~" + r.eta() / 60 + "m " + String.format("%02d", r.eta() % 60) + "s" : " ~" + r.eta() + "s");
     }
 
+    /** Kinds of material the edit still lacks; 0 in creative (the server charges nothing there) or before the report arrives. */
+    private long missingKinds() {
+        if (minecraft.player == null || minecraft.player.isCreative() || !ClientData.reportFor.equals(currentId())) return 0;
+        return ClientData.rows.stream().filter(r -> r.missing() > 0).count();
+    }
+
     private static List<String> reversed(List<String> l) {
         List<String> out = new ArrayList<>(l);
         Collections.reverse(out);
@@ -447,8 +453,12 @@ public class EditorScreen extends Screen {
         Component name = PlacerItem.displayName(currentId());
         if (editing != null) name = Component.translatable("mbplacer.gui.editing", name);
         g.drawString(font, font.plainSubstrByWidth(name.getString(), w / 2), x0 + PAD + 52, y + 4, editing != null ? YELLOW : TEXT, false);
-        if (editing != null && button(g, font, applyX(), y, 50, 15, Component.translatable("mbplacer.gui.apply"), true, mx, my))
-            setTooltipForNextRenderPass(Component.translatable("mbplacer.gui.apply_tip"));
+        if (editing != null) {
+            long missing = missingKinds();
+            boolean hover = missing > 0 ? Ui.frame(g, applyX(), y, 50, 15, false, mx, my) : button(g, font, applyX(), y, 50, 15, Component.translatable("mbplacer.gui.apply"), true, mx, my);
+            if (missing > 0) g.drawCenteredString(font, Component.translatable("mbplacer.gui.apply"), applyX() + 25, y + 4, DIM);
+            if (hover) setTooltipForNextRenderPass(Component.translatable(missing > 0 ? "mbplacer.gui.apply_missing" : "mbplacer.gui.apply_tip", missing));
+        }
         if (entry.members().size() > 1) {
             int[] t = tierBox();
             button(g, t[0], y, 15, 15, Icon.LEFT, false, mx, my);
@@ -647,6 +657,10 @@ public class EditorScreen extends Screen {
             return true;
         }
         if (editing != null && in(mx, my, applyX(), y, 50, 15)) {
+            if (missingKinds() > 0) {
+                showTab("MATERIALS");
+                return true;
+            }
             Net.CHANNEL.sendToServer(new Net.UpdatePlaced(editing.id(), selection().save(), true));
             onClose();
             return true;

@@ -87,6 +87,19 @@ public final class DevHooks {
         step(t += 10, null, DevHooks::placeVoidMiner);
         step(t += 40, null, DevHooks::aimAtPlaced);
         step(t += 10, "hover", null);
+        // editing in survival with missing materials: Apply is greyed out
+        step(t += 5, null, mc -> onServer(mc, sp -> sp.setGameMode(net.minecraft.world.level.GameType.SURVIVAL)));
+        step(t += 20, null, DevHooks::aimAtPlaced); // survival: the player dropped, aim again
+        step(t += 5, null, mc -> {
+            ClientHooks.openScreen();
+            if (mc.screen instanceof EditorScreen e) e.devCount(MODIFIERS, ITEM, 4);
+        });
+        step(t += 40, "edit_apply_missing", null);
+        step(t += 5, null, mc -> {
+            mc.setScreen(null);
+            onServer(mc, sp -> sp.setGameMode(net.minecraft.world.level.GameType.CREATIVE));
+        });
+        step(t += 10, null, DevHooks::aimAtPlaced);
         step(t += 10, null, mc -> onServer(mc, DevHooks::updateLooked));
         step(t += 15, "updating", null);
         step(t += 110, null, mc -> onServer(mc, sp -> log(sp, "after update")));
