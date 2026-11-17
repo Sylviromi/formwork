@@ -34,14 +34,24 @@ class PlacementGeometryTest {
     void nearFaceStartsAtTheAimedBlock() {
         var fp = Resolver.Footprint.of(box().keySet());
         BlockPos front = new BlockPos(10, 64, 10);
-        int[] s = bounds(layout(Resolver.centerFor(fp, front, Direction.SOUTH), Direction.SOUTH));
+        int[] s = bounds(layout(Resolver.centerFor(fp, front, Direction.SOUTH, Direction.SOUTH), Direction.SOUTH));
         assertEquals(10, s[2], "facing south: the structure starts at the aimed block");
         assertEquals(13, s[5], "and is 4 deep");
-        int[] n = bounds(layout(Resolver.centerFor(fp, front, Direction.NORTH), Direction.NORTH));
+        int[] n = bounds(layout(Resolver.centerFor(fp, front, Direction.NORTH, Direction.NORTH), Direction.NORTH));
         assertEquals(10, n[5]);
-        int[] e = bounds(layout(Resolver.centerFor(fp, front, Direction.EAST), Direction.EAST));
+        int[] e = bounds(layout(Resolver.centerFor(fp, front, Direction.EAST, Direction.EAST), Direction.EAST));
         assertEquals(10, e[0]);
         assertEquals(64, e[1], "bottom on the aimed block's level");
+    }
+
+    @Test
+    void turnIsIndependentOfTheSideItExtendsTo() {
+        var fp = Resolver.Footprint.of(box().keySet());
+        BlockPos front = new BlockPos(10, 64, 10);
+        // turned east (4 deep along x, 3 wide along z) but placed extending south from the aimed block
+        int[] b = bounds(layout(Resolver.centerFor(fp, front, Direction.SOUTH, Direction.EAST), Direction.EAST));
+        assertEquals(10, b[2], "near face on the aimed block");
+        assertEquals(3, b[5] - b[2] + 1, "3 wide along z when turned east");
     }
 
     @Test

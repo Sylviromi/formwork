@@ -81,7 +81,7 @@ public class PlacementScreen extends Screen {
     private static void face(Direction d) {
         edit(t -> {
             Direction base = t.contains(PlacerItem.ANCHOR) ? Direction.from2DDataValue(t.getInt(PlacerItem.ANCHOR_FACING))
-                    : ClientHooks.facing;
+                    : Direction.NORTH;
             t.putInt(PlacerItem.ROTATION, dev.sylviromi.mbplacer.build.Resolver.turnsTo(base, d));
         });
     }

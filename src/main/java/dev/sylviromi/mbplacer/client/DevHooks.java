@@ -162,7 +162,7 @@ public final class DevHooks {
             Direction f = sp.getDirection();
             Selection sel = new Selection(tier9(Catalog.server), new int[0], Map.of(), modifiers(SPEED, 4));
             var specs = Resolver.specs(Catalog.server, sel);
-            BlockPos target = Resolver.centerFor(Resolver.Footprint.of(specs.keySet()), sp.blockPosition().relative(f, 3), f);
+            BlockPos target = Resolver.centerFor(Resolver.Footprint.of(specs.keySet()), sp.blockPosition().relative(f, 3), f, f);
             var blocks = Resolver.world(specs, target, f);
             Placer.put(sp.serverLevel(), blocks, sp);
             Placements.of(sp.serverLevel()).add(sp.serverLevel(), Placements.record(blocks, sel.save(), target, f, sp.getUUID()));

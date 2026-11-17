@@ -163,10 +163,10 @@ public final class Resolver {
         }
     }
 
-    /** The target (bottom centre) that puts a structure's near face on `front`, extending away in `facing`. */
-    public static BlockPos centerFor(Footprint fp, BlockPos front, Direction facing) {
+    /** The target (bottom centre) that puts a structure, turned to `facing`, with its near face on `front`, extending away towards `away`. */
+    public static BlockPos centerFor(Footprint fp, BlockPos front, Direction away, Direction facing) {
         int[] e = fp.centered(rotationFor(facing));
-        return switch (facing) {
+        return switch (away) {
             case NORTH -> front.offset(0, 0, -e[3]);
             case SOUTH -> front.offset(0, 0, -e[2]);
             case EAST -> front.offset(-e[0], 0, 0);

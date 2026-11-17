@@ -79,13 +79,13 @@ public class PlacerItem extends Item {
      * away from the player; then the turn (around the centre) and the offset. Null when there is nothing to aim at.
      */
     @Nullable
-    public static Placement placement(ItemStack tool, Level level, @Nullable BlockHitResult hit, Direction playerFacing, Resolver.Footprint fp) {
+    public static Placement placement(ItemStack tool, Level level, @Nullable BlockHitResult hit, Direction look, Resolver.Footprint fp) {
         BlockPos base = anchor(tool);
-        Direction facing = playerFacing;
-        if (base != null) facing = Direction.from2DDataValue(tool.getTag().getInt(ANCHOR_FACING));
-        else if (hit != null) base = Resolver.centerFor(fp, target(level, hit), playerFacing);
-        else return null;
+        // the structure's turn never follows the camera: north, or the anchor's, plus the card's rotation
+        Direction facing = base != null ? Direction.from2DDataValue(tool.getTag().getInt(ANCHOR_FACING)) : Direction.NORTH;
         for (int i = 0; i < rotation(tool); i++) facing = facing.getClockWise();
+        if (base == null && hit == null) return null;
+        if (base == null) base = Resolver.centerFor(fp, target(level, hit), look, facing); // the look only decides which side it extends to
         int[] o = offset(tool);
         return new Placement(base.offset(o[0], o[1], o[2]), facing);
     }
