@@ -15,6 +15,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -55,10 +56,26 @@ public final class ClientHooks {
         }
     }
 
+    /** After a hold-to-dismantle ends, the still-held use key must not go on to place something: ignored until released. */
+    private static boolean dismantling, holdLock;
+
+    @SubscribeEvent
+    static void onUseKey(InputEvent.InteractionKeyMappingTriggered e) {
+        if (holdLock && e.isUseItem()) {
+            e.setCanceled(true);
+            e.setSwingHand(false);
+        }
+    }
+
     @SubscribeEvent
     static void onTick(TickEvent.ClientTickEvent e) {
         Minecraft mc = Minecraft.getInstance();
-        if (e.phase != TickEvent.Phase.END || mc.player == null || mc.screen != null) return;
+        if (e.phase != TickEvent.Phase.END || mc.player == null) return;
+        boolean using = mc.player.isUsingItem() && mc.player.getUseItem().getItem() instanceof PlacerItem;
+        if (dismantling && !using) holdLock = true;
+        dismantling = using;
+        if (holdLock && !mc.options.keyUse.isDown()) holdLock = false;
+        if (mc.screen != null) return;
         ItemStack tool = WorldGhost.heldTool();
         while (PLACEMENT.consumeClick()) if (!tool.isEmpty()) mc.setScreen(new PlacementScreen());
     }
