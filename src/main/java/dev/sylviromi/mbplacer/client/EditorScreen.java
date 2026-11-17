@@ -364,8 +364,8 @@ public class EditorScreen extends Screen {
                 }
                 boolean me = ClientData.me == Materials.MeStatus.CONNECTED;
                 Map<Item, Integer> craftAll = new LinkedHashMap<>();
-                if (me) ClientData.rows.stream().filter(r -> r.missing() > 0 && r.craftable()).forEach(r -> craftAll.put(r.item(), r.missing()));
-                if (craftAll.size() > 1)
+                if (me) ClientData.rows.stream().filter(r -> r.missing() > 0 && r.craftable() && r.crafting() < 0).forEach(r -> craftAll.put(r.item(), r.missing()));
+                if (!craftAll.isEmpty())
                     out.add(actionLine(Component.translatable("mbplacer.gui.craft_all", craftAll.size()), () -> {
                         ClientHooks.resume = this;
                         Net.CHANNEL.sendToServer(new Net.CraftAll(craftAll));

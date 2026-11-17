@@ -132,11 +132,7 @@ public final class DevHooks {
         }));
         step(t += 40, "ae2_craft", null);
         // AE2's Back (and Start) return through the host: the editor comes back
-        step(t += 5, null, mc -> onServer(mc, sp -> {
-            if (sp.containerMenu instanceof appeng.menu.ISubMenu sub)
-                sub.getHost().returnToMainMenu(sp, sub);
-            else MbPlacer.LOG.warn("dev: no AE2 sub menu open: {}", sp.containerMenu);
-        }));
+        step(t += 5, null, mc -> onServer(mc, DevHooks::aeBack));
         step(t += 30, "ae2_back", null);
         step(t += 1, null, mc -> MbPlacer.LOG.info("dev: screen after AE2 back: {}", mc.screen));
         // Craft all: patterns for two of the fission reactor's blocks, then AE2's confirm queue from the editor
@@ -151,6 +147,15 @@ public final class DevHooks {
                         ForgeRegistries.ITEMS.getValue(new net.minecraft.resources.ResourceLocation("mekanismgenerators:fission_reactor_casing")), 68))));
         step(t += 40, "craft_all_confirm", null);
         step(t += 1, null, mc -> MbPlacer.LOG.info("dev: screen after craft all: {}", mc.screen));
+        step(t += 5, null, mc -> onServer(mc, DevHooks::aeBack));
+        step(t += 40, "craft_all_second", null);
+        step(t += 5, null, mc -> onServer(mc, DevHooks::aeBack));
+        step(t += 30, null, mc -> MbPlacer.LOG.info("dev: screen after the last craft: {}", mc.screen));
+        // AE2's own path for comparison: amount screen, then Next
+        step(t += 5, null, mc -> onServer(mc, sp -> dev.sylviromi.mbplacer.ae2.AeLink.openCraft(sp, net.minecraft.world.InteractionHand.MAIN_HAND,
+                ForgeRegistries.ITEMS.getValue(new net.minecraft.resources.ResourceLocation("mekanismgenerators:reactor_glass")), 146)));
+        step(t += 10, null, mc -> onServer(mc, sp -> { if (sp.containerMenu instanceof appeng.menu.me.crafting.CraftAmountMenu m) m.confirm(146, false, false); }));
+        step(t += 40, "ae2_own_plan", null);
         step(t += 20, null, Minecraft::stop);
     }
 
@@ -276,6 +281,12 @@ public final class DevHooks {
             pp.getLogic().updatePatterns();
         }
         MbPlacer.LOG.info("dev: patterns set up: {}", sp.level().getBlockEntity(wap.south()));
+    }
+
+    /** AE2's Back (and Start) return through the host. */
+    private static void aeBack(ServerPlayer sp) {
+        if (sp.containerMenu instanceof appeng.menu.ISubMenu sub) sub.getHost().returnToMainMenu(sp, sub);
+        else MbPlacer.LOG.warn("dev: no AE2 sub menu open: {}", sp.containerMenu);
     }
 
     private static void infinityCard(ServerPlayer sp) {

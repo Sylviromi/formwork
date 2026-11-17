@@ -11,7 +11,8 @@ import appeng.api.stacks.AEItemKey;
 import appeng.core.definitions.AEItems;
 import appeng.helpers.WirelessTerminalMenuHost;
 import appeng.menu.locator.MenuLocators;
-import appeng.helpers.IMenuCraftingPacket;
+import appeng.api.networking.crafting.CalculationStrategy;
+import appeng.menu.MenuOpener;
 import appeng.menu.me.crafting.CraftAmountMenu;
 import appeng.menu.me.crafting.CraftConfirmMenu;
 import net.minecraft.world.InteractionHand;
@@ -24,8 +25,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.UUID;
 import java.util.List;
 import java.util.Map;
 
@@ -152,20 +155,42 @@ public final class AeLink {
     /** Opens AE2's own craft screen (amount, plan, start) for this item on the tool's grid, as a wireless terminal would. */
     public static void openCraft(ServerPlayer player, InteractionHand hand, Item item, int amount) {
         if (node(player, player.getItemInHand(hand)) == null) return;
+        QUEUES.remove(player.getUUID());
         CraftAmountMenu.open(player, MenuLocators.forHand(player, hand), AEItemKey.of(item), Math.max(1, amount));
     }
 
+    private record Queued(InteractionHand hand, Deque<Map.Entry<Item, Integer>> items) {
+    }
+
+    private static final Map<UUID, Queued> QUEUES = new HashMap<>();
+
     /**
-     * AE2's craft confirm screen for each item in turn (AE2's own "craft missing" queue): Start moves on to the next one,
-     * the last one returns to the editor.
+     * AE2's normal crafting plan screen (as after its amount screen) for each missing item in turn; Start or Cancel there moves
+     * on to the next one, the last one returns to the editor. Items the network is already crafting are skipped.
      */
     public static void openCraftAll(ServerPlayer player, InteractionHand hand, Map<Item, Integer> amounts) {
         IGridNode node = node(player, player.getItemInHand(hand));
         if (node == null) return;
-        List<IMenuCraftingPacket.AutoCraftEntry> queue = new ArrayList<>();
-        // AE2 crafts one item per listed slot; the slot numbers themselves are not used outside the crafting terminal
-        amounts.forEach((item, n) -> { if (craftable(node.getGrid(), item)) queue.add(new IMenuCraftingPacket.AutoCraftEntry(AEItemKey.of(item), Collections.nCopies(n, 0))); });
-        CraftConfirmMenu.openWithCraftingList(() -> node, player, MenuLocators.forHand(player, hand), queue);
+        var crafting = node.getGrid().getCraftingService();
+        Deque<Map.Entry<Item, Integer>> items = new ArrayDeque<>();
+        amounts.forEach((item, n) -> { if (crafting.isCraftable(AEItemKey.of(item)) && !crafting.isRequesting(AEItemKey.of(item))) items.add(Map.entry(item, n)); });
+        QUEUES.put(player.getUUID(), new Queued(hand, items));
+        if (!openNext(player)) PlacerMenuHost.backToEditor(player);
+    }
+
+    /** Opens the plan for the next queued item; false when the queue is done. */
+    static boolean openNext(ServerPlayer player) {
+        Queued q = QUEUES.get(player.getUUID());
+        var next = q == null ? null : q.items().poll();
+        if (next == null) {
+            QUEUES.remove(player.getUUID());
+            return false;
+        }
+        MenuOpener.open(CraftConfirmMenu.TYPE, player, MenuLocators.forHand(player, q.hand()));
+        if (!(player.containerMenu instanceof CraftConfirmMenu menu) || !menu.planJob(AEItemKey.of(next.getKey()), next.getValue(), CalculationStrategy.REPORT_MISSING_ITEMS))
+            return openNext(player);
+        menu.broadcastChanges();
+        return true;
     }
 
     /** The tool as registered when AE2 is present: it can host AE2's craft screens. */
