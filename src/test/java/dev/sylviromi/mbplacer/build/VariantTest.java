@@ -15,12 +15,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class VariantTest {
     private static final String NULL = "voidminers:null_modifier", SPEED = "voidminers:verdium_speed_modifier", ENERGY = "voidminers:verdium_energy_modifier";
 
-    private static final String MINER = "mbtool:voidminer/voidminer_tier3_verdium";
+    private static final String MINER = "examplepack:voidminer/voidminer_tier3_verdium";
 
     @Test
     void scopedSetWinsForItsStructure() {
         assertEquals("mbplacer:voidminer_modifiers", catalog().variantOf(NULL, MINER).id());
-        assertEquals("mbplacer:solar_modifiers", catalog().variantOf(NULL, "mbtool:voidminer/solarpanel_tier_3_verdium").id());
+        assertEquals("mbplacer:solar_modifiers", catalog().variantOf(NULL, "examplepack:voidminer/solarpanel_tier_3_verdium").id());
     }
 
     private static Catalog catalog() {
@@ -93,7 +93,7 @@ class VariantTest {
         assertNull(c.variantOf(glass, "anypack:sps", java.util.Set.of(glass, "mekanism:sps_casing")), "glass in a multiblock no set is for");
     }
 
-    private static final String E_IN ="mm:tiny_energy_port_input", I_IN = "mm:tiny_item_port_input", MM = "mbtool:dev_mm/water_condenser_tier_1";
+    private static final String E_IN ="mm:tiny_energy_port_input", I_IN = "mm:tiny_item_port_input", MM = "examplepack:dev_mm/water_condenser_tier_1";
 
     /** Two MM-style sets in one family, two energy slots in the blueprint. */
     private static Catalog ports() {

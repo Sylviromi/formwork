@@ -20,35 +20,33 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Reads blueprints from data/<ns>/mbplacer/structures/** and the legacy data/<ns>/mbtool_structures/**,
+ * Reads blueprints from data/<ns>/mbplacer/structures/** (vanilla structure-block .nbt files),
  * and variant sets from data/<ns>/mbplacer/variants/*.json ({"blocks": ["mod:a", "mod:b"]}).
  */
 public class CatalogLoader extends SimplePreparableReloadListener<Catalog> {
-    private static final List<String> STRUCTURE_FOLDERS = List.of("mbplacer/structures", "mbtool_structures");
+    private static final String STRUCTURES = "mbplacer/structures";
 
     @Override
     protected Catalog prepare(ResourceManager rm, ProfilerFiller profiler) {
         Catalog catalog = new Catalog();
         int skipped = 0;
-        for (String folder : STRUCTURE_FOLDERS) {
-            for (Map.Entry<ResourceLocation, Resource> e : rm.listResources(folder, rl -> rl.getPath().endsWith(".nbt")).entrySet()) {
-                ResourceLocation rl = e.getKey();
-                String path = rl.getPath().substring(folder.length() + 1, rl.getPath().length() - 4);
-                String id = rl.getNamespace() + ":" + path;
-                try (InputStream in = e.getValue().open()) {
-                    CompoundTag tag = NbtIo.readCompressed(in);
-                    Blueprint bp = Blueprint.fromStructureNbt(id, tag);
-                    String missing = bp.blocks().values().stream().map(BlockSpec::id)
-                            .filter(b -> !isBlock(b)).findFirst().orElse(null);
-                    if (missing != null || bp.blocks().isEmpty()) {
-                        skipped++;
-                        MbPlacer.LOG.debug("Skipping blueprint {}: unknown block {}", id, missing);
-                        continue;
-                    }
-                    catalog.addBlueprint(bp);
-                } catch (Exception ex) {
-                    MbPlacer.LOG.warn("Could not read blueprint {}", rl, ex);
+        for (Map.Entry<ResourceLocation, Resource> e : rm.listResources(STRUCTURES, rl -> rl.getPath().endsWith(".nbt")).entrySet()) {
+            ResourceLocation rl = e.getKey();
+            String path = rl.getPath().substring(STRUCTURES.length() + 1, rl.getPath().length() - 4);
+            String id = rl.getNamespace() + ":" + path;
+            try (InputStream in = e.getValue().open()) {
+                CompoundTag tag = NbtIo.readCompressed(in);
+                Blueprint bp = Blueprint.fromStructureNbt(id, tag);
+                String missing = bp.blocks().values().stream().map(BlockSpec::id)
+                        .filter(b -> !isBlock(b)).findFirst().orElse(null);
+                if (missing != null || bp.blocks().isEmpty()) {
+                    skipped++;
+                    MbPlacer.LOG.debug("Skipping blueprint {}: unknown block {}", id, missing);
+                    continue;
                 }
+                catalog.addBlueprint(bp);
+            } catch (Exception ex) {
+                MbPlacer.LOG.warn("Could not read blueprint {}", rl, ex);
             }
         }
         for (Map.Entry<ResourceLocation, Resource> e : rm.listResources("mbplacer/variants", rl -> rl.getPath().endsWith(".json")).entrySet()) {

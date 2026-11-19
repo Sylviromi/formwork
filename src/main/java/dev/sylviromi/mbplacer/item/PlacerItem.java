@@ -267,15 +267,14 @@ public class PlacerItem extends Item {
 
     /**
      * Name of a blueprint or generator. Generators: the owning mod's own name (e.g. Mekanism's "Industrial Turbine").
-     * Blueprints: our lang key, then the legacy mbtool key the pack ships, then the prettified file name.
+     * Blueprints: our lang key (mbplacer.structure.<file>), else the prettified file name.
      */
     public static Component displayName(String id) {
         String own = Catalog.generators().stream().filter(g -> g.id().equals(id)).map(g -> g.nameKey()).findFirst().orElse("");
         if (!own.isEmpty() && net.minecraft.locale.Language.getInstance().has(own)) return Component.translatable(own);
         String name = Catalog.shortName(id);
-        List<String> keys = id.startsWith("mbplacer:gen/") ? List.of("mbplacer.gen." + name) : List.of("mbplacer.structure." + name, "mbtool.structure." + name);
-        for (String key : keys)
-            if (net.minecraft.locale.Language.getInstance().has(key)) return Component.translatable(key);
+        String key = (id.startsWith("mbplacer:gen/") ? "mbplacer.gen." : "mbplacer.structure.") + name;
+        if (net.minecraft.locale.Language.getInstance().has(key)) return Component.translatable(key);
         return Component.literal(Catalog.prettify(name));
     }
 

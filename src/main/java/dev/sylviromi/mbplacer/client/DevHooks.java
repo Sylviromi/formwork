@@ -39,8 +39,8 @@ import java.util.function.Consumer;
 @Mod.EventBusSubscriber(modid = MbPlacer.ID, value = Dist.CLIENT)
 public final class DevHooks {
     private static final boolean ON = Boolean.getBoolean("mbplacer.dev");
-    private static final String TURBINE = "mbplacer:gen/mekanism_turbine", VOID_MINER = "mbtool:voidminer/voidminer",
-            FISSION = "mbplacer:gen/mekanism_fission_reactor", MM = "mbtool:dev_mm/water_condenser", MODIFIERS = "mbplacer:voidminer_modifiers",
+    private static final String TURBINE = "mbplacer:gen/mekanism_turbine", VOID_MINER = "pi:voidminer/voidminer",
+            FISSION = "mbplacer:gen/mekanism_fission_reactor", MM = "pi:dev_mm/water_condenser", MODIFIERS = "mbplacer:voidminer_modifiers",
             SPEED = "voidminers:ultimate_speed_modifier", ITEM = "voidminers:ultimate_item_modifier";
     private static int tick;
 
