@@ -83,4 +83,26 @@ class GeneratorTest {
         assertEquals(4, count(m, "mekanism:elite_induction_provider"));
         assertEquals(23, count(m, "mekanism:ultimate_induction_cell"));
     }
+
+    @Test
+    void extrasTierMakesTheWholeMatrixReinforced() {
+        // cells infinite (7), providers basic (0): providers are lifted to absolute, casing and ports reinforced
+        var m = new InductionMatrix().build(new int[]{5, 5, 5, 7, 0, 4, 0});
+        assertEquals(4, count(m, "mekanism_extras:absolute_induction_provider"));
+        assertEquals(23, count(m, "mekanism_extras:infinite_induction_cell"));
+        assertEquals(2, count(m, "mekanism_extras:reinforced_induction_port"));
+        assertEquals(0, count(m, "mekanism:induction_casing"));
+    }
+
+    @Test
+    void evaporationTierAndGlass() {
+        // height 5, glass, ultimate tier (4)
+        var m = new ThermalEvaporation().build(new int[]{5, 1, 4});
+        String p = "morethermalevaporation:ultimate_thermal_evaporation_";
+        assertEquals(p + "controller", m.get(new BlockPos(2, 1, 0)).id());
+        assertEquals(2, count(m, p + "valve"));
+        m.forEach((pos, s) -> { if (isFrame(pos, 4, 5, 4)) assertEquals(p + "block", s.id()); });
+        assertTrue(count(m, "mekanism:structural_glass") > 0);
+        assertEquals("mekanism:thermal_evaporation_controller", new ThermalEvaporation().build(new int[]{5, 0}).get(new BlockPos(2, 1, 0)).id(), "without More Thermal Evaporation there is no tier param");
+    }
 }

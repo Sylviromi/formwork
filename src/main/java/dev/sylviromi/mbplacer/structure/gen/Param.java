@@ -58,6 +58,8 @@ public record Param(String name, int min, int max, int def, List<String> labels,
         if (isAuto(value)) return Component.translatable("mbplacer.gui.auto");
         if (labels.isEmpty()) return Component.literal(String.valueOf(value));
         String l = labels.get(clamp(value) - min);
-        return Language.getInstance().has(l) ? Component.translatable(l) : Component.literal(l);
+        if (Language.getInstance().has(l)) return Component.translatable(l);
+        // a borrowed key its mod no longer has: its last part, readable ("…basic_evaporation_plant" -> "Basic Evaporation Plant")
+        return Component.literal(l.contains(".") ? Catalog.prettify(l.substring(l.lastIndexOf('.') + 1)) : l);
     }
 }
