@@ -46,7 +46,9 @@ public final class PlaceCommand {
                 continue;
             }
             String block = tok.substring(0, eq);
-            VariantSet set = Catalog.server.variantOf(block, entry);
+            Map<BlockPos, BlockSpec> plain = Resolver.specs(Catalog.server, new Selection(entry, params.stream().mapToInt(Integer::intValue).toArray(), Map.of()));
+            VariantSet set = plain == null ? null : Resolver.slots(Catalog.server, entry, plain).values().stream()
+                    .filter(s -> s.blocks().contains(block)).findFirst().orElse(null);
             if (set == null) {
                 c.getSource().sendFailure(Component.literal("Block is in no variant set: " + block));
                 return 0;

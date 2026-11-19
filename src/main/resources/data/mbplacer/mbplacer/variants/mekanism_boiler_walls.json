@@ -1,0 +1,9 @@
+{
+  "walls": true,
+  "blocks": [
+    "mekanism:boiler_casing",
+    "mekanism:structural_glass",
+    "mekanismgenerators:reactor_glass",
+    "mekanism:boiler_valve"
+  ]
+}

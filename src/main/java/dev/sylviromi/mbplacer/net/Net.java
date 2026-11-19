@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 
 /** All packets. Server to client: catalog sync and material reports. Client to server: selection, report query, craft request. */
 public final class Net {
-    private static final String VERSION = "10";
+    private static final String VERSION = "11";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(MbPlacer.ID, "main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -51,11 +51,12 @@ public final class Net {
                 buf.writeUtf(v.match());
                 buf.writeVarInt(v.columns());
                 buf.writeUtf(v.family());
+                buf.writeBoolean(v.walls());
             });
         }
 
         static CatalogReset read(FriendlyByteBuf b) {
-            return new CatalogReset(b.readList(buf -> new VariantSet(buf.readUtf(), buf.readList(FriendlyByteBuf::readUtf), buf.readUtf(), buf.readVarInt(), buf.readUtf())));
+            return new CatalogReset(b.readList(buf -> new VariantSet(buf.readUtf(), buf.readList(FriendlyByteBuf::readUtf), buf.readUtf(), buf.readVarInt(), buf.readUtf(), buf.readBoolean())));
         }
     }
 

@@ -38,6 +38,19 @@ public final class Catalog {
 
     public void addVariants(VariantSet set) {
         variants.put(set.id(), set);
+        setCounts = null;
+    }
+
+    private Map<String, Integer> setCounts;
+
+    /** How many variant sets list this block. */
+    private int setsWith(String block) {
+        if (setCounts == null) {
+            Map<String, Integer> m = new HashMap<>();
+            variants.values().forEach(s -> s.blocks().forEach(b -> m.merge(b, 1, Integer::sum)));
+            setCounts = m;
+        }
+        return setCounts.getOrDefault(block, 0);
     }
 
     public Optional<Generator> generator(String id) {
@@ -48,15 +61,31 @@ public final class Catalog {
         return ALL_GENERATORS.stream().filter(g -> ModList.get() == null || ModList.get().isLoaded(g.requiredMod())).toList();
     }
 
-    /** The variant set a block belongs to within an entry; sets with a match win over global ones. */
+    /** variantOf without knowing the structure's blocks: wall sets never apply. */
     public VariantSet variantOf(String blockId, String entryId) {
-        VariantSet global = null;
+        return variantOf(blockId, entryId, Set.of());
+    }
+
+    /**
+     * The variant set a block belongs to within an entry whose blocks are `present`. Sets with a match win; else the set
+     * with most of its blocks in the structure, so shared blocks (structural glass) go to the multiblock they are part of,
+     * whatever the structure file is called. A wall set needs one of its own blocks there (one no other set lists, like
+     * its casing), so glass in some other multiblock or a decoration is left alone.
+     */
+    public VariantSet variantOf(String blockId, String entryId, Set<String> present) {
+        VariantSet best = null;
+        int bestScore = 0;
         for (VariantSet s : variants.values()) {
             if (!s.blocks().contains(blockId) || !s.appliesTo(entryId)) continue;
             if (!s.match().isEmpty()) return s;
-            if (global == null) global = s;
+            if (s.walls() && s.blocks().stream().noneMatch(b -> present.contains(b) && setsWith(b) == 1)) continue;
+            int score = (int) s.blocks().stream().filter(present::contains).count();
+            if (best == null || score > bestScore) {
+                best = s;
+                bestScore = score;
+            }
         }
-        return global;
+        return best;
     }
 
     /** The sets whose blocks may go into a slot of this set within an entry: its family, or just itself. */

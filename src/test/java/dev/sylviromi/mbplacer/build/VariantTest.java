@@ -67,7 +67,33 @@ class VariantTest {
         assertEquals(Map.of(new BlockPos(0, 0, 0), SPEED, new BlockPos(1, 0, 0), SPEED), o, "first slots in position order");
     }
 
-    private static final String E_IN = "mm:tiny_energy_port_input", I_IN = "mm:tiny_item_port_input", MM = "mbtool:dev_mm/water_condenser_tier_1";
+    @Test
+    void wallSetsLeaveFrameEdgesAlone() {
+        String casing = "mekanism:dynamic_tank", valve = "mekanism:dynamic_valve", entry = "mbplacer:gen/mekanism_dynamic_tank";
+        Catalog c = new Catalog();
+        c.addVariants(new VariantSet("mbplacer:mekanism_dynamic_tank_walls", List.of(casing, valve), "", 0, "", true));
+        Map<BlockPos, BlockSpec> base = new LinkedHashMap<>();
+        for (int x = 0; x < 3; x++)
+            for (int y = 0; y < 3; y++)
+                for (int z = 0; z < 3; z++) if (x != 1 || y != 1 || z != 1) base.put(new BlockPos(x, y, z), BlockSpec.of(casing));
+        var slots = Resolver.slots(c, entry, base);
+        assertEquals(6, slots.size(), "only the six face centres of a 3x3x3 shell");
+        var out = Resolver.applyOverrides(c, entry, base, base, Map.of(new BlockPos(1, 1, 0), valve, new BlockPos(0, 0, 0), valve));
+        assertEquals(valve, out.get(new BlockPos(1, 1, 0)).id());
+        assertEquals(casing, out.get(new BlockPos(0, 0, 0)).id(), "a corner keeps its casing");
+    }
+
+    @Test
+    void sharedGlassGoesToTheMultiblockItIsPartOf() {
+        String glass = "mekanism:structural_glass", boiler = "mekanism:boiler_casing", turbine = "mekanismgenerators:turbine_casing";
+        Catalog c = new Catalog();
+        c.addVariants(new VariantSet("mbplacer:turbine_walls", List.of(turbine, glass), "", 0, "", true));
+        c.addVariants(new VariantSet("mbplacer:boiler_walls", List.of(boiler, glass), "", 0, "", true));
+        assertEquals("mbplacer:boiler_walls", c.variantOf(glass, "anypack:big_steam_thing", java.util.Set.of(boiler, glass)).id(), "the file name does not matter");
+        assertNull(c.variantOf(glass, "anypack:sps", java.util.Set.of(glass, "mekanism:sps_casing")), "glass in a multiblock no set is for");
+    }
+
+    private static final String E_IN ="mm:tiny_energy_port_input", I_IN = "mm:tiny_item_port_input", MM = "mbtool:dev_mm/water_condenser_tier_1";
 
     /** Two MM-style sets in one family, two energy slots in the blueprint. */
     private static Catalog ports() {

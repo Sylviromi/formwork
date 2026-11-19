@@ -131,6 +131,8 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
 - ME link through a WAP only, no wireless terminal. No energy or XP cost.
 - v1 covers void miners and solar, Mekanism sizable multiblocks, all pack NBTs, and Masterful Machinery port tiers.
 - Out of v1: JEI category, KubeJS event, GregTech, NuclearCraft import, Curios, undo.
+- Without `match`, a block shared by several sets goes to the set with most of its blocks in the structure (content, not file names, so any pack's structures work). `"walls": true` sets (Mekanism `*_walls.json`) only swap positions on one face of the bounds, and only apply when the structure has one of the set's own blocks (listed by no other set).
+- Blueprints drop Mekanism's `inventoryID` on load, so placed copies do not share one cached multiblock.
 - Variant sets can carry `"match": "<substring of the structure file name>"`. It is used because the null modifier is in both the void miner and solar sets.
 - Variant choice is by count per set ("4 speed, 4 energy, rest null") instead of clicking single positions. This deviates from the plan and is simpler UI.
 - Rotation follows the player's facing. The structure starts at the clicked block and extends away from the player, centred sideways. The placement panel adds rotation and offset; anchoring folds them into the anchor.

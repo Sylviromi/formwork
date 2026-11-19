@@ -1,0 +1,9 @@
+{
+  "walls": true,
+  "blocks": [
+    "mekanism:dynamic_tank",
+    "mekanism:structural_glass",
+    "mekanismgenerators:reactor_glass",
+    "mekanism:dynamic_valve"
+  ]
+}

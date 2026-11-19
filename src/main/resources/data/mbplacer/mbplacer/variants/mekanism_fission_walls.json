@@ -1,0 +1,9 @@
+{
+  "walls": true,
+  "blocks": [
+    "mekanismgenerators:fission_reactor_casing",
+    "mekanismgenerators:reactor_glass",
+    "mekanismgenerators:fission_reactor_port",
+    "mekanismgenerators:fission_reactor_logic_adapter"
+  ]
+}

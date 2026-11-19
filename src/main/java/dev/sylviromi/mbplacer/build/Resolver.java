@@ -41,10 +41,10 @@ public final class Resolver {
                                                    Map<BlockPos, String> overrides) {
         if (overrides.isEmpty()) return blocks;
         Map<BlockPos, BlockSpec> out = new LinkedHashMap<>(blocks);
+        Map<BlockPos, VariantSet> slots = slots(catalog, entry, base);
         overrides.forEach((pos, block) -> {
-            BlockSpec spec = base.get(pos);
-            VariantSet set = spec == null ? null : catalog.variantOf(spec.id(), entry);
-            if (set != null && catalog.family(set, entry).stream().anyMatch(f -> f.blocks().contains(block))) out.put(pos, spec.withId(block));
+            VariantSet set = slots.get(pos);
+            if (set != null && catalog.family(set, entry).stream().anyMatch(f -> f.blocks().contains(block))) out.put(pos, base.get(pos).withId(block));
         });
         return out;
     }
@@ -52,9 +52,12 @@ public final class Resolver {
     /** Swappable positions of the unmodified structure and the set each belongs to, in position order. */
     public static Map<BlockPos, VariantSet> slots(Catalog catalog, String entry, Map<BlockPos, BlockSpec> base) {
         Map<BlockPos, VariantSet> out = new TreeMap<>();
+        Footprint fp = base.isEmpty() ? null : Footprint.of(base.keySet());
+        Set<String> present = new HashSet<>();
+        base.values().forEach(s -> present.add(s.id()));
         base.forEach((pos, spec) -> {
-            VariantSet set = catalog.variantOf(spec.id(), entry);
-            if (set != null) out.put(pos, set);
+            VariantSet set = catalog.variantOf(spec.id(), entry, present);
+            if (set != null && !(set.walls() && fp.faces(pos) != 1)) out.put(pos, set);
         });
         return out;
     }
@@ -108,12 +111,11 @@ public final class Resolver {
     static Map<BlockPos, BlockSpec> applyVariants(Catalog catalog, String entry, Map<BlockPos, BlockSpec> base, Map<String, Map<String, Integer>> counts) {
         if (counts.isEmpty()) return base;
         Map<BlockPos, BlockSpec> out = new LinkedHashMap<>(base);
+        Map<BlockPos, VariantSet> all = slots(catalog, entry, base);
         for (var setCounts : counts.entrySet()) {
             VariantSet set = catalog.variants.get(setCounts.getKey());
             if (set == null || !set.blocks().containsAll(setCounts.getValue().keySet())) return null;
-            List<BlockPos> slots = base.entrySet().stream().filter(e -> catalog.variantOf(e.getValue().id(), entry) == set)
-                    .map(Map.Entry::getKey).sorted().toList();
-            Iterator<BlockPos> it = slots.iterator();
+            Iterator<BlockPos> it = all.entrySet().stream().filter(e -> e.getValue() == set).map(Map.Entry::getKey).iterator();
             for (var c : setCounts.getValue().entrySet())
                 for (int i = 0; i < c.getValue() && it.hasNext(); i++) {
                     BlockPos p = it.next();
@@ -152,6 +154,11 @@ public final class Resolver {
                 minZ = Math.min(minZ, p.getZ()); maxZ = Math.max(maxZ, p.getZ());
             }
             return new Footprint(minX, minY, minZ, maxX, maxY, maxZ);
+        }
+
+        /** On how many faces of the bounds p lies: 0 inside, 1 wall, 2 edge, 3 corner. */
+        int faces(BlockPos p) {
+            return (p.getX() == minX || p.getX() == maxX ? 1 : 0) + (p.getY() == minY || p.getY() == maxY ? 1 : 0) + (p.getZ() == minZ || p.getZ() == maxZ ? 1 : 0);
         }
 
         /** x/z extents after rotating and centering (as world() lays it out): {minX, maxX, minZ, maxZ} relative to the target. */

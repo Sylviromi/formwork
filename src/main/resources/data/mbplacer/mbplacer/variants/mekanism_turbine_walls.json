@@ -1,0 +1,10 @@
+{
+  "walls": true,
+  "blocks": [
+    "mekanismgenerators:turbine_casing",
+    "mekanism:structural_glass",
+    "mekanismgenerators:reactor_glass",
+    "mekanismgenerators:turbine_valve",
+    "mekanismgenerators:turbine_vent"
+  ]
+}
