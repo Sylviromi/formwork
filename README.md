@@ -37,6 +37,8 @@ Structures and variant sets are plain datapack files, so any pack can add its ow
 
 **Structures:** vanilla structure-block files at `data/<namespace>/formwork/structures/<path>.nbt`. Save the multiblock with a structure block and drop the file in. Files whose name ends in `_tier<N>` (for example `crusher_tier_1`, `crusher_tier_2`) become one entry with a tier selector. A structure that uses a block from a mod that is not installed is skipped. Name an entry with the lang key `formwork.structure.<file name>`; otherwise the file name is shown in readable words.
 
+**Temporary, patch-work:** Formwork also reads Multi Builder Tool's folder, `data/<namespace>/mbtool_structures/`, and its `mbtool.structure.<file>` names, so packs that already ship structures for that mod work unchanged. This is a stopgap and will be removed; new structures belong in `formwork/structures`.
+
 **Variant sets:** `data/<namespace>/formwork/variants/<name>.json` lists blocks that may replace each other:
 
 ```json

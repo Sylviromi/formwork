@@ -4,13 +4,13 @@ Read this first in a new session. It is updated as work proceeds.
 Approved plan: `/home/shrimp/.claude/plans/ok-lets-plan-this-declarative-fiddle.md`.
 
 ## What this is
-A standalone Forge 1.20.1 mod, Formwork (id `formwork`; it was called Multiblock Placer, id `mbplacer`, until 2026-11-19). It is not a remake of igentuman's Multi Builder Tool (`mbtool`) and reads none of its data. Developed and tested against the pack Project Infinity 0.1, which is not ours.
+A standalone Forge 1.20.1 mod, Formwork (id `formwork`; it was called Multiblock Placer, id `mbplacer`, until 2026-11-19). It is not a remake of igentuman's Multi Builder Tool (`mbtool`). As a temporary, clearly marked patch it still reads that mod's structure folder and names, so Project Infinity works unchanged (user, 2026-11-19). Developed and tested against the pack Project Infinity 0.1, which is not ours.
 Multi Builder Tool's source is at `/mnt/Projects/multi-block-placer`, only for reading its data format; never copy code from it.
 - The tool has no inventory and no energy.
 - It links to AE2 through a Wireless Access Point.
 - It takes blocks from the player inventory first, then ME. Placement is all-or-nothing.
 - It can request AE2 crafts for missing blocks.
-- It reads blueprints (vanilla structure-block `.nbt`) from `data/*/formwork/structures/**.nbt` only.
+- It reads blueprints (vanilla structure-block `.nbt`) from `data/*/formwork/structures/**.nbt`, and for now `data/*/mbtool_structures/**.nbt` (`CatalogLoader.LEGACY`, patch-work, to be removed).
 - Variant sets live in `data/*/formwork/variants/*.json`. They let you choose how many of each void miner modifier or Masterful Machinery port tier to use.
 - Tiers are grouped by filename: `xxx_tier3_yyy` becomes group `xxx`, tier 3.
 - Mekanism sizable multiblocks are generated from params in `structure/gen/`.
@@ -127,7 +127,7 @@ Multi Builder Tool's source is at `/mnt/Projects/multi-block-placer`, only for r
 - Browser category: the mod of the block whose id contains "controller", else of the rarest modded block.
 
 ## Decisions (from the user)
-- New mod with its own id (now `formwork`), not a remake of Multi Builder Tool, and standalone: no `mbtool_structures` or `mbtool.*` names (dropped 2026-11-19). The dev worlds keep their test structures in the `pi` datapack under `data/pi/formwork/structures`.
+- New mod with its own id (now `formwork`), not a remake of Multi Builder Tool, and standalone; `mbtool_structures` and `mbtool.structure.*` names are read again only as a temporary patch for Project Infinity (user, 2026-11-19), logged at load. The dev worlds keep their test structures in the `pi` datapack under `data/pi/formwork/structures`.
 - ME link through a WAP only, no wireless terminal. No energy or XP cost.
 - v1 covers void miners and solar, Mekanism sizable multiblocks, all pack NBTs, and Masterful Machinery port tiers.
 - Out of v1: JEI category, KubeJS event, GregTech, NuclearCraft import, Curios, undo.

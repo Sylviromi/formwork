@@ -269,14 +269,16 @@ public class PlacerItem extends Item {
 
     /**
      * Name of a blueprint or generator. Generators: the owning mod's own name (e.g. Mekanism's "Industrial Turbine").
-     * Blueprints: our lang key (formwork.structure.<file>), else the prettified file name.
+     * Blueprints: our lang key (formwork.structure.<file>), then Multi Builder Tool's (mbtool.structure.<file>, read with its
+     * structure folder for now, see CatalogLoader.LEGACY), else the prettified file name.
      */
     public static Component displayName(String id) {
         String own = Catalog.generators().stream().filter(g -> g.id().equals(id)).map(g -> g.nameKey()).findFirst().orElse("");
         if (!own.isEmpty() && net.minecraft.locale.Language.getInstance().has(own)) return Component.translatable(own);
         String name = Catalog.shortName(id);
-        String key = (id.startsWith("formwork:gen/") ? "formwork.gen." : "formwork.structure.") + name;
-        if (net.minecraft.locale.Language.getInstance().has(key)) return Component.translatable(key);
+        List<String> keys = id.startsWith("formwork:gen/") ? List.of("formwork.gen." + name) : List.of("formwork.structure." + name, "mbtool.structure." + name);
+        for (String key : keys)
+            if (net.minecraft.locale.Language.getInstance().has(key)) return Component.translatable(key);
         return Component.literal(Catalog.prettify(name));
     }
 

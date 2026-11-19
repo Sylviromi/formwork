@@ -20,33 +20,43 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Reads blueprints from data/<ns>/formwork/structures/** (vanilla structure-block .nbt files),
+ * Reads blueprints from data/<ns>/formwork/structures/** (vanilla structure-block .nbt files), and for now Multi Builder Tool's
+ * data/<ns>/mbtool_structures/** too (see LEGACY),
  * and variant sets from data/<ns>/formwork/variants/*.json ({"blocks": ["mod:a", "mod:b"]}).
  */
 public class CatalogLoader extends SimplePreparableReloadListener<Catalog> {
     private static final String STRUCTURES = "formwork/structures";
+    /**
+     * Patch-work, not part of the design: Multi Builder Tool's folder, read so packs that ship structures for that mod (Project
+     * Infinity) work unchanged. shortcut: drop it once those packs move their files to formwork/structures.
+     */
+    private static final String LEGACY = "mbtool_structures";
 
     @Override
     protected Catalog prepare(ResourceManager rm, ProfilerFiller profiler) {
         Catalog catalog = new Catalog();
         int skipped = 0;
-        for (Map.Entry<ResourceLocation, Resource> e : rm.listResources(STRUCTURES, rl -> rl.getPath().endsWith(".nbt")).entrySet()) {
-            ResourceLocation rl = e.getKey();
-            String path = rl.getPath().substring(STRUCTURES.length() + 1, rl.getPath().length() - 4);
-            String id = rl.getNamespace() + ":" + path;
-            try (InputStream in = e.getValue().open()) {
-                CompoundTag tag = NbtIo.readCompressed(in);
-                Blueprint bp = Blueprint.fromStructureNbt(id, tag);
-                String missing = bp.blocks().values().stream().map(BlockSpec::id)
-                        .filter(b -> !isBlock(b)).findFirst().orElse(null);
-                if (missing != null || bp.blocks().isEmpty()) {
-                    skipped++;
-                    Formwork.LOG.debug("Skipping blueprint {}: unknown block {}", id, missing);
-                    continue;
+        int legacy = 0;
+        for (String folder : List.of(STRUCTURES, LEGACY)) {
+            for (Map.Entry<ResourceLocation, Resource> e : rm.listResources(folder, rl -> rl.getPath().endsWith(".nbt")).entrySet()) {
+                ResourceLocation rl = e.getKey();
+                String path = rl.getPath().substring(folder.length() + 1, rl.getPath().length() - 4);
+                String id = rl.getNamespace() + ":" + path;
+                try (InputStream in = e.getValue().open()) {
+                    CompoundTag tag = NbtIo.readCompressed(in);
+                    Blueprint bp = Blueprint.fromStructureNbt(id, tag);
+                    String missing = bp.blocks().values().stream().map(BlockSpec::id)
+                            .filter(b -> !isBlock(b)).findFirst().orElse(null);
+                    if (missing != null || bp.blocks().isEmpty()) {
+                        skipped++;
+                        Formwork.LOG.debug("Skipping blueprint {}: unknown block {}", id, missing);
+                        continue;
+                    }
+                    catalog.addBlueprint(bp);
+                    if (folder.equals(LEGACY)) legacy++;
+                } catch (Exception ex) {
+                    Formwork.LOG.warn("Could not read blueprint {}", rl, ex);
                 }
-                catalog.addBlueprint(bp);
-            } catch (Exception ex) {
-                Formwork.LOG.warn("Could not read blueprint {}", rl, ex);
             }
         }
         for (Map.Entry<ResourceLocation, Resource> e : rm.listResources("formwork/variants", rl -> rl.getPath().endsWith(".json")).entrySet()) {
@@ -71,6 +81,8 @@ public class CatalogLoader extends SimplePreparableReloadListener<Catalog> {
         }
         Formwork.LOG.info("Loaded {} blueprints ({} skipped for missing mods) and {} variant sets",
                 catalog.blueprints.size(), skipped, catalog.variants.size());
+        if (legacy > 0) Formwork.LOG.info("{} of them from mbtool_structures (Multi Builder Tool's folder, read for compatibility for now; "
+                + "move them to data/<namespace>/formwork/structures)", legacy);
         return catalog;
     }
 
