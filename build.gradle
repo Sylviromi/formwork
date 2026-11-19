@@ -4,8 +4,8 @@ plugins {
 }
 
 version = mod_version
-group = 'dev.sylviromi.mbplacer'
-base.archivesName = "mbplacer-${mc_version}"
+group = 'dev.sylviromi.formwork'
+base.archivesName = "formwork-${mc_version}"
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
 minecraft {
@@ -17,12 +17,12 @@ minecraft {
             // lets production mods with mixins (AE2) run in dev
             property 'mixin.env.remapRefMap', 'true'
             property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
-            mods { mbplacer { source sourceSets.main } }
+            mods { formwork { source sourceSets.main } }
         }
         client {
             // -Pmbdev: screenshot run in run/saves/test (see client/DevHooks)
             if (project.hasProperty('mbdev')) {
-                property 'mbplacer.dev', 'true'
+                property 'formwork.dev', 'true'
                 args '--quickPlaySingleplayer', 'test'
             }
         }

@@ -69,5 +69,5 @@ def convert(src, dst):
 pack = sys.argv[1]
 for n in NAMES:
     src = os.path.join(pack, "kubejs/data/mbtool/mbtool_structures/custom_multiblocks", n + ".nbt")
-    dst = os.path.join("run/saves/test/datapacks/pi/data/pi/mbplacer/structures/dev_mm", n + ".nbt")
+    dst = os.path.join("run/saves/test/datapacks/pi/data/pi/formwork/structures/dev_mm", n + ".nbt")
     print(n, "swapped palette entries:", convert(src, dst))

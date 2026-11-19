@@ -1,17 +1,17 @@
-# Multiblock Placer: handoff and todo
+# Formwork: handoff and todo
 
 Read this first in a new session. It is updated as work proceeds.
 Approved plan: `/home/shrimp/.claude/plans/ok-lets-plan-this-declarative-fiddle.md`.
 
 ## What this is
-A fresh Forge 1.20.1 mod (`mbplacer`) that replaces igentuman's Multi Builder Tool (`mbtool`) for the pack Project Infinity 0.1.
-The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as reference only.
+A standalone Forge 1.20.1 mod, Formwork (id `formwork`; it was called Multiblock Placer, id `mbplacer`, until 2026-11-19). It is not a remake of igentuman's Multi Builder Tool (`mbtool`) and reads none of its data. Developed and tested against the pack Project Infinity 0.1, which is not ours.
+Multi Builder Tool's source is at `/mnt/Projects/multi-block-placer`, only for reading its data format; never copy code from it.
 - The tool has no inventory and no energy.
 - It links to AE2 through a Wireless Access Point.
 - It takes blocks from the player inventory first, then ME. Placement is all-or-nothing.
 - It can request AE2 crafts for missing blocks.
-- It reads the pack's existing `data/*/mbtool_structures/**.nbt` and its own `data/*/mbplacer/structures/**.nbt`.
-- Variant sets live in `data/*/mbplacer/variants/*.json`. They let you choose how many of each void miner modifier or Masterful Machinery port tier to use.
+- It reads blueprints (vanilla structure-block `.nbt`) from `data/*/formwork/structures/**.nbt` only.
+- Variant sets live in `data/*/formwork/variants/*.json`. They let you choose how many of each void miner modifier or Masterful Machinery port tier to use.
 - Tiers are grouped by filename: `xxx_tier3_yyy` becomes group `xxx`, tier 3.
 - Mekanism sizable multiblocks are generated from params in `structure/gen/`.
 
@@ -20,8 +20,8 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
 - First run: `./gradlew copyPackMods`. It copies void miners, mango multiblock and Masterful Machinery from the pack into `libs/` for dev runtime.
 - Dev client: `./gradlew runClient`. It loads AE2, JEI and Mekanism from Maven at the pack's versions.
 
-## Layout (src/main/java/dev/sylviromi/mbplacer)
-- `MbPlacer`: registration and event wiring.
+## Layout (src/main/java/dev/sylviromi/formwork)
+- `Formwork`: registration and event wiring.
 - `item/PlacerItem`: the tool. The selection is in stack nbt, and the AE link is the `accessPoint` tag.
 - `structure/`:
   - `BlockSpec`, `Blueprint`: NBT parsing.
@@ -75,7 +75,7 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
   - Craft missing button
   - changes sent to the server live
 - [x] `WorldGhost`: translucent ghost in front of the player, red where blocked, outline box.
-- [x] Op command `/mbplacer place <entry> <pos> [params...] [block=count...]` places for free. Useful for pack makers and headless tests.
+- [x] Op command `/formwork place <entry> <pos> [params...] [block=count...]` places for free. Useful for pack makers and headless tests.
 - [x] Catalog sync uses a compact palette encoding. Raw NBT broke joining: the 18x18x18 reactor exceeded the NBT packet limit, and `neoeco_f9_crafting_controller` is 1.5 MB.
 - [x] Verified on the headless dev server (Mekanism's own formation marker, `inventoryID` on the casing):
   - fission 3x4x3 and 18x18x18
@@ -96,7 +96,7 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
   - placement takes from ME
   - Craft missing starts jobs
 - [ ] **Masterful Machinery port variants are untested.** MM port blocks only exist with the pack's MM configs, so test in the pack.
-- [x] Pack integration (pack: `/data/games/PrismLauncher/instances/Project Infinity 0.1/minecraft`). Backups of every edited file: `../mbplacer-migration-backup.tar.gz` and `../mbplacer-migration-backup-lang.tar.gz` (both in the instance folder).
+- [x] Pack integration, done under the old name (the pack is not ours; ask before changing it) (pack: `/data/games/PrismLauncher/instances/Project Infinity 0.1/minecraft`). Backups of every edited file: `../mbplacer-migration-backup.tar.gz` and `../mbplacer-migration-backup-lang.tar.gz` (both in the instance folder).
   - `mods/mbplacer-1.20.1-0.2.0.jar` added; old jar renamed to `MultiBuilderTool-1.20.1-1.0.28.jar.disabled`
   - the 73 structures that only shipped inside the old jar were copied to `kubejs/data/mbtool/mbtool_structures/`, and their names merged into `kubejs/assets/mbtool/lang/*.json`
   - tooltips.js, creative_bin_blacklist.js (entry removed, the tool has no inventory), guide `multibuilder_tool.md`, the tips_and_tricks quest reward, and the quest text now point at `mbplacer:placer`
@@ -107,7 +107,7 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
 - [ ] Later, as a separate task: a learning scaffold so the user can rewrite the mod themselves.
 
 ## How to test quickly
-- Headless: `./gradlew runServer` (port 25599, RCON 25575 with password test), then `python3 /tmp/rcon.py "mbplacer place mbplacer:gen/mekanism_turbine 80 -60 0"` and `data get block ...`. The rcon.py script is a 10-line client and may need recreating.
+- Headless: `./gradlew runServer` (port 25599, RCON 25575 with password test), then `python3 /tmp/rcon.py "formwork place formwork:gen/mekanism_turbine 80 -60 0"` and `data get block ...`. The rcon.py script is a 10-line client and may need recreating.
 - Screenshots: `./gradlew runClient -Pmbdev` uses `run/saves/test` (a copy of `run/world` with the pack structures datapack). See `client/DevHooks`.
 
 ## v0.4.0 (2026-11-17, installed in the pack)
@@ -123,11 +123,11 @@ The old mod's source is at `/mnt/Projects/multi-block-placer` and is used as ref
 - Generators name themselves with Mekanism's keys (`Generator.nameKey()`), settings with Mekanism block/GUI keys (`Param.named(...)`), toggles with vanilla `options.on/off`.
 - Variant sets are named by the words their blocks' names share ("Energy Port Input"); tier groups by the words their members' names share, minus "Tier".
 - Common GUI words use vanilla keys (`gui.back`, `gui.cancel`, `controls.reset`, `gui.recipebook.search_hint`, `gui.socialInteractions.tab_all`).
-- A pack can still override any name with `mbplacer.variants.<set>`, `mbplacer.structure.<file>` or `mbplacer.param.<name>`.
+- A pack can still override any name with `formwork.variants.<set>`, `formwork.structure.<file>` or `formwork.param.<name>`.
 - Browser category: the mod of the block whose id contains "controller", else of the rarest modded block.
 
 ## Decisions (from the user)
-- Fresh mod with a new id. Keep reading the mbtool NBT data.
+- New mod with its own id (now `formwork`), not a remake of Multi Builder Tool, and standalone: no `mbtool_structures` or `mbtool.*` names (dropped 2026-11-19). The dev worlds keep their test structures in the `pi` datapack under `data/pi/formwork/structures`.
 - ME link through a WAP only, no wireless terminal. No energy or XP cost.
 - v1 covers void miners and solar, Mekanism sizable multiblocks, all pack NBTs, and Masterful Machinery port tiers.
 - Out of v1: JEI category, KubeJS event, GregTech, NuclearCraft import, Curios, undo.
