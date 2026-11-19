@@ -22,11 +22,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.UUID;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -152,40 +147,17 @@ public final class AeLink {
     /** Opens AE2's own craft screen (amount, plan, start) for this item on the tool's grid, as a wireless terminal would. */
     public static void openCraft(ServerPlayer player, InteractionHand hand, Item item, int amount) {
         if (node(player, player.getItemInHand(hand)) == null) return;
-        QUEUES.remove(player.getUUID());
         CraftAmountMenu.open(player, MenuLocators.forHand(player, hand), AEItemKey.of(item), Math.max(1, amount));
     }
 
-    private record Queued(InteractionHand hand, Deque<Map.Entry<Item, Integer>> items) {
-    }
-
-    private static final Map<UUID, Queued> QUEUES = new HashMap<>();
-
-    /**
-     * Clicks every missing row in turn: AE2's amount screen for each item; Start (or Back) there moves on to the next one,
-     * the last one returns to the editor. Items the network is already crafting are skipped.
-     */
-    public static void openCraftAll(ServerPlayer player, InteractionHand hand, Map<Item, Integer> amounts) {
+    /** Crafts every missing block (amounts: what the network has to provide of each) as one AE2 job; see StructureCraft. */
+    public static void craftStructure(ServerPlayer player, InteractionHand hand, Map<Item, Integer> amounts, net.minecraft.network.chat.Component name) {
         IGridNode node = node(player, player.getItemInHand(hand));
-        if (node == null) return;
-        var crafting = node.getGrid().getCraftingService();
-        Deque<Map.Entry<Item, Integer>> items = new ArrayDeque<>();
-        amounts.forEach((item, n) -> { if (crafting.isCraftable(AEItemKey.of(item)) && !crafting.isRequesting(AEItemKey.of(item))) items.add(Map.entry(item, n)); });
-        QUEUES.put(player.getUUID(), new Queued(hand, items));
-        if (!openNext(player)) PlacerMenuHost.backToEditor(player);
+        if (node != null) StructureCraft.start(player, hand, node, amounts, name);
     }
 
-    /** Opens the plan for the next queued item; false when the queue is done. */
-    static boolean openNext(ServerPlayer player) {
-        Queued q = QUEUES.get(player.getUUID());
-        var next = q == null ? null : q.items().poll();
-        if (next == null) {
-            QUEUES.remove(player.getUUID());
-            return false;
-        }
-        // exactly what clicking the row does: AE2's amount screen, then its plan and Start
-        CraftAmountMenu.open(player, MenuLocators.forHand(player, q.hand()), AEItemKey.of(next.getKey()), Math.max(1, next.getValue()));
-        return true;
+    public static void onServerTick(net.minecraftforge.event.TickEvent.ServerTickEvent event) {
+        StructureCraft.onServerTick(event);
     }
 
     /** The tool as registered when AE2 is present: it can host AE2's craft screens. */

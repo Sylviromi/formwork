@@ -33,6 +33,8 @@ public class Formwork {
     private static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, ID);
     // with AE2 the tool can host AE2's craft screens; AeLink is only touched when AE2 is loaded
     public static final RegistryObject<Item> PLACER = ITEMS.register("placer", () -> AE2 ? AeLink.placerItem() : new PlacerItem());
+    /** The token an AE2 structure-materials job makes (see ae2/StructureCraft); never a real item in an inventory. */
+    public static final RegistryObject<Item> STRUCTURE_MATERIALS = AE2 ? ITEMS.register("structure_materials", () -> new Item(new Item.Properties().stacksTo(1))) : null;
 
     public Formwork() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -47,6 +49,7 @@ public class Formwork {
         MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerChangedDimensionEvent e) -> { if (e.getEntity() instanceof ServerPlayer p) Net.syncPlacements(p); });
         MinecraftForge.EVENT_BUS.addListener((RegisterCommandsEvent e) -> PlaceCommand.register(e.getDispatcher()));
         MinecraftForge.EVENT_BUS.addListener(dev.sylviromi.formwork.build.Updater::onServerTick);
+        if (AE2) MinecraftForge.EVENT_BUS.addListener(AeLink::onServerTick);
     }
 
     private void setup(FMLCommonSetupEvent event) {

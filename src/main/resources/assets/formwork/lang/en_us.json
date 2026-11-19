@@ -77,5 +77,11 @@
   "formwork.msg.placed_skipped": "Placed %s blocks, skipped %s in the way",
   "formwork.gui.auto": "Auto",
   "formwork.gui.click_craft": "Click: craft with AE2",
-  "formwork.gui.craft_all": "Craft all missing (%s)"
+  "formwork.gui.craft_all": "Craft all missing as one job (%s)",
+  "item.formwork.structure_materials": "Structure materials",
+  "item.formwork.structure_materials.named": "Structure materials: %s",
+  "formwork.msg.structure_craft.running": "The ME network is already crafting a structure's materials for you",
+  "formwork.msg.structure_craft.no_pattern": "The ME network did not take the crafting request. Is it powered?",
+  "formwork.msg.structure_craft.cancelled": "Crafting the structure's materials was cancelled",
+  "formwork.msg.structure_craft.done": "The structure's materials are ready in the ME network"
 }

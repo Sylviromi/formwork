@@ -30,8 +30,8 @@ final class PlacerMenuHost extends ItemMenuHost implements IActionHost, ISubMenu
 
     @Override
     public void returnToMainMenu(Player player, ISubMenu subMenu) {
-        // AE2 returns here after Start or Back: the next item of a Craft all, else back to the editor
-        if (player instanceof ServerPlayer sp && !AeLink.openNext(sp)) backToEditor(sp);
+        // AE2 returns here after Start or Back
+        if (player instanceof ServerPlayer sp) backToEditor(sp);
     }
 
     static void backToEditor(ServerPlayer player) {

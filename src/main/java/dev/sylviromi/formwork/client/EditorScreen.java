@@ -364,11 +364,12 @@ public class EditorScreen extends Screen {
                 }
                 boolean me = ClientData.me == Materials.MeStatus.CONNECTED;
                 Map<Item, Integer> craftAll = new LinkedHashMap<>();
-                if (me) ClientData.rows.stream().filter(r -> r.missing() > 0 && r.craftable() && r.crafting() < 0).forEach(r -> craftAll.put(r.item(), r.missing()));
+                // the job asks the network for all it must give, so stock it already holds is used before anything is crafted
+                if (me) ClientData.rows.stream().filter(r -> r.missing() > 0 && r.craftable() && r.crafting() < 0).forEach(r -> craftAll.put(r.item(), r.needed() - r.inventory()));
                 if (!craftAll.isEmpty())
                     out.add(actionLine(Component.translatable("formwork.gui.craft_all", craftAll.size()), () -> {
                         ClientHooks.resume = this;
-                        Net.CHANNEL.sendToServer(new Net.CraftAll(craftAll));
+                        Net.CHANNEL.sendToServer(new Net.CraftAll(currentId(), craftAll));
                     }));
                 for (Materials.Row r : ClientData.rows) {
                     int have = (int) Math.min(Integer.MAX_VALUE, r.inventory() + Math.max(0, r.me()));

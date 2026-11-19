@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 
 /** All packets. Server to client: catalog sync and material reports. Client to server: selection, report query, craft request. */
 public final class Net {
-    private static final String VERSION = "11";
+    private static final String VERSION = "12";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(Formwork.ID, "main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -179,14 +179,15 @@ public final class Net {
         }
     }
 
-    /** Open AE2's craft confirm screens for all these missing materials, one after another. */
-    public record CraftAll(Map<Item, Integer> amounts) {
+    /** Craft all these materials of an entry as one AE2 job (amounts: what the network has to provide). */
+    public record CraftAll(String entry, Map<Item, Integer> amounts) {
         void write(FriendlyByteBuf b) {
+            b.writeUtf(entry);
             b.writeMap(amounts, (o, i) -> o.writeId(net.minecraft.core.registries.BuiltInRegistries.ITEM, i), FriendlyByteBuf::writeVarInt);
         }
 
         static CraftAll read(FriendlyByteBuf b) {
-            return new CraftAll(b.readMap(i -> i.readById(net.minecraft.core.registries.BuiltInRegistries.ITEM), FriendlyByteBuf::readVarInt));
+            return new CraftAll(b.readUtf(), b.readMap(i -> i.readById(net.minecraft.core.registries.BuiltInRegistries.ITEM), FriendlyByteBuf::readVarInt));
         }
     }
 
@@ -341,7 +342,7 @@ public final class Net {
         m.amounts().forEach((item, n) -> { if (item != null && n > 0) amounts.put(item, Math.min(n, 1 << 20)); });
         for (InteractionHand hand : InteractionHand.values())
             if (p.getItemInHand(hand).getItem() instanceof PlacerItem) {
-                AeLink.openCraftAll(p, hand, amounts);
+                AeLink.craftStructure(p, hand, amounts, PlacerItem.displayName(m.entry()));
                 return;
             }
     }

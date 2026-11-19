@@ -135,22 +135,26 @@ public final class DevHooks {
         step(t += 5, null, mc -> onServer(mc, DevHooks::aeBack));
         step(t += 30, "ae2_back", null);
         step(t += 1, null, mc -> Formwork.LOG.info("dev: screen after AE2 back: {}", mc.screen));
-        // Craft all: patterns for two of the fission reactor's blocks, then AE2's confirm queue from the editor
+        // Craft all as one job: a drive holding the fission reactor's glass and casing, then the structure job's AE2 plan, started
         step(t += 5, null, mc -> onServer(mc, DevHooks::buildPatterns));
+        step(t += 5, null, mc -> onServer(mc, DevHooks::stockReactorBlocks));
+        step(t += 10, null, mc -> onServer(mc, DevHooks::stockReactorBlocks)); // the new drive joins the grid a tick later
         step(t += 20, null, mc -> {
             editor(mc, FISSION, "MATERIALS", null);
             ClientHooks.resume = (EditorScreen) mc.screen;
         });
         step(t += 40, "craft_all_button", null);
-        step(t += 5, null, mc -> onServer(mc, sp -> dev.sylviromi.formwork.ae2.AeLink.openCraftAll(sp, net.minecraft.world.InteractionHand.MAIN_HAND,
-                Map.of(ForgeRegistries.ITEMS.getValue(new net.minecraft.resources.ResourceLocation("mekanismgenerators:reactor_glass")), 146,
-                        ForgeRegistries.ITEMS.getValue(new net.minecraft.resources.ResourceLocation("mekanismgenerators:fission_reactor_casing")), 68))));
-        step(t += 40, "craft_all_confirm", null);
+        step(t += 5, null, mc -> onServer(mc, sp -> dev.sylviromi.formwork.ae2.AeLink.craftStructure(sp, net.minecraft.world.InteractionHand.MAIN_HAND,
+                Map.of(reactorBlock("reactor_glass"), 146, reactorBlock("fission_reactor_casing"), 68), net.minecraft.network.chat.Component.literal("Fission Reactor"))));
+        step(t += 60, "craft_all_confirm", null);
         step(t += 1, null, mc -> Formwork.LOG.info("dev: screen after craft all: {}", mc.screen));
-        step(t += 5, null, mc -> onServer(mc, DevHooks::aeBack));
-        step(t += 40, "craft_all_second", null);
-        step(t += 5, null, mc -> onServer(mc, DevHooks::aeBack));
-        step(t += 30, null, mc -> Formwork.LOG.info("dev: screen after the last craft: {}", mc.screen));
+        step(t += 5, null, mc -> onServer(mc, sp -> {
+            if (sp.containerMenu instanceof appeng.menu.me.crafting.CraftConfirmMenu m) m.startJob();
+            else Formwork.LOG.warn("dev: no AE2 plan open: {}", sp.containerMenu);
+        }));
+        step(t += 60, null, mc -> onServer(mc, sp -> Formwork.LOG.info("dev: after the structure job: ME {} (glass, casing)",
+                dev.sylviromi.formwork.ae2.AeLink.snapshot(sp, sp.getMainHandItem(), List.of(reactorBlock("reactor_glass"), reactorBlock("fission_reactor_casing"))).values().stream().map(v -> v[0]).toList())));
+        step(t += 1, null, mc -> Formwork.LOG.info("dev: screen after the structure job: {}", mc.screen));
         // AE2's own path for comparison: amount screen, then Next
         step(t += 5, null, mc -> onServer(mc, sp -> dev.sylviromi.formwork.ae2.AeLink.openCraft(sp, net.minecraft.world.InteractionHand.MAIN_HAND,
                 ForgeRegistries.ITEMS.getValue(new net.minecraft.resources.ResourceLocation("mekanismgenerators:reactor_glass")), 146)));
@@ -281,6 +285,26 @@ public final class DevHooks {
             pp.getLogic().updatePatterns();
         }
         Formwork.LOG.info("dev: patterns set up: {}", sp.level().getBlockEntity(wap.south()));
+    }
+
+    private static net.minecraft.world.item.Item reactorBlock(String name) {
+        return ForgeRegistries.ITEMS.getValue(net.minecraft.resources.ResourceLocation.tryParse("mekanismgenerators:" + name));
+    }
+
+    /** A drive with a cell next to the energy cell, holding enough glass and casing for the default fission reactor. */
+    private static void stockReactorBlocks(ServerPlayer sp) {
+        var src = sp.createCommandSourceStack().withSuppressedOutput().withPermission(4);
+        sp.server.getCommands().performPrefixedCommand(src, "setblock " + (wap.getX() + 1) + " " + wap.getY() + " " + wap.getZ()
+                + " ae2:drive{inv:{item0:{id:\"ae2:item_storage_cell_64k\",Count:1b}}} keep");
+        var grid = dev.sylviromi.formwork.ae2.AeLink.grid(sp, sp.getMainHandItem());
+        if (grid == null) {
+            Formwork.LOG.warn("dev: no grid to stock");
+            return;
+        }
+        var inv = grid.getStorageService().getInventory();
+        long glass = inv.insert(appeng.api.stacks.AEItemKey.of(reactorBlock("reactor_glass")), 146, appeng.api.config.Actionable.MODULATE, appeng.api.networking.security.IActionSource.empty());
+        long casing = inv.insert(appeng.api.stacks.AEItemKey.of(reactorBlock("fission_reactor_casing")), 68, appeng.api.config.Actionable.MODULATE, appeng.api.networking.security.IActionSource.empty());
+        Formwork.LOG.info("dev: stocked {} glass, {} casing", glass, casing);
     }
 
     /** AE2's Back (and Start) return through the host. */
