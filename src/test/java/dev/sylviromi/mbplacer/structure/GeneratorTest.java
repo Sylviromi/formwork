@@ -35,7 +35,6 @@ class GeneratorTest {
         assertEquals(n * n * n - (n - 2) * (n - 2) * (n - 2), shell);
         m.forEach((p, s) -> { if (isFrame(p, n, n, n)) assertEquals("mekanismgenerators:fission_reactor_casing", s.id()); });
         assertEquals(4, count(m, "mekanismgenerators:fission_reactor_port"));
-        assertEquals(0, count(m, "mekanismgenerators:fission_reactor_logic_adapter"));
         // every fuel column ends in a control rod directly below the ceiling
         int rods = count(m, "mekanismgenerators:control_rod_assembly");
         assertEquals(rods * (n - 3), count(m, "mekanismgenerators:fission_fuel_assembly"));

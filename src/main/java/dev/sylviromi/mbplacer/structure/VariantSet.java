@@ -12,14 +12,6 @@ import java.util.List;
  * (Mekanism refuses glass, ports and valves there).
  */
 public record VariantSet(String id, List<String> blocks, String match, int columns, String family, boolean walls) {
-    public VariantSet(String id, List<String> blocks, String match, int columns) {
-        this(id, blocks, match, columns, "", false);
-    }
-
-    public VariantSet(String id, List<String> blocks, String match, int columns, String family) {
-        this(id, blocks, match, columns, family, false);
-    }
-
     public boolean appliesTo(String entryId) {
         return match.isEmpty() || Catalog.shortName(entryId).contains(match);
     }

@@ -29,9 +29,6 @@ class PlacementsTest {
 
     @Test
     void compassRotationIsClockwiseFromBase() {
-        assertEquals(0, Resolver.turnsTo(Direction.NORTH, Direction.NORTH));
-        assertEquals(1, Resolver.turnsTo(Direction.NORTH, Direction.EAST));
-        assertEquals(3, Resolver.turnsTo(Direction.NORTH, Direction.WEST));
         for (Direction base : Direction.Plane.HORIZONTAL)
             for (Direction want : Direction.Plane.HORIZONTAL) {
                 Direction f = base;

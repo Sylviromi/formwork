@@ -25,8 +25,8 @@ class VariantTest {
 
     private static Catalog catalog() {
         Catalog c = new Catalog();
-        c.addVariants(new VariantSet("mbplacer:solar_modifiers", List.of(NULL, "voidminers:solar_verdium_weather_modifier"), "solar", 0));
-        c.addVariants(new VariantSet("mbplacer:voidminer_modifiers", List.of(NULL, SPEED, ENERGY), "voidminer", 0));
+        c.addVariants(new VariantSet("mbplacer:solar_modifiers", List.of(NULL, "voidminers:solar_verdium_weather_modifier"), "solar", 0, "", false));
+        c.addVariants(new VariantSet("mbplacer:voidminer_modifiers", List.of(NULL, SPEED, ENERGY), "voidminer", 0, "", false));
         return c;
     }
 
@@ -98,8 +98,8 @@ class VariantTest {
     /** Two MM-style sets in one family, two energy slots in the blueprint. */
     private static Catalog ports() {
         Catalog c = new Catalog();
-        c.addVariants(new VariantSet("mbplacer:mm_energy_port_input", List.of(E_IN, "mm:gigantic_energy_port_input"), "", 0, "mm_ports"));
-        c.addVariants(new VariantSet("mbplacer:mm_item_port_input", List.of(I_IN, "mm:gigantic_item_port_input"), "", 0, "mm_ports"));
+        c.addVariants(new VariantSet("mbplacer:mm_energy_port_input", List.of(E_IN, "mm:gigantic_energy_port_input"), "", 0, "mm_ports", false));
+        c.addVariants(new VariantSet("mbplacer:mm_item_port_input", List.of(I_IN, "mm:gigantic_item_port_input"), "", 0, "mm_ports", false));
         return c;
     }
 
