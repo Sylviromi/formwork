@@ -10,7 +10,7 @@ Forge 1.20.1. AE2 is optional.
 - **Sizable Mekanism multiblocks.** The fission reactor, industrial turbine, thermoelectric boiler, induction matrix, dynamic tank and thermal evaporation plant are generated from settings such as width, height, rotors, coils and glass, following Mekanism's own formation rules.
 - **Choose every part.** Click a block in the preview to choose what goes there: which port where, glass or casing on a wall, void miner modifiers, Masterful Machinery port sizes (for packs that use the usual tiny to gigantic port names). Frame edges stay casing, so the machine still forms.
 - **Materials first.** The Materials tab shows what you need and what you have in your inventory and on the ME network. Nothing is used unless everything is there.
-- **AE2.** Put the tool in a Wireless Access Point to link it. Missing blocks with a pattern can be crafted from the Materials tab, one at a time or all at once, and the running crafts show their progress.
+- **AE2.** Put the tool in a Wireless Access Point to link it. Click a missing block with a pattern to craft it, or craft everything missing as one AE2 job, planned and confirmed in AE2's own screen. Running crafts show their progress.
 - **Placement card (H).** Anchor the preview, move it block by block, turn it. Hold Ctrl when placing to skip spots that are in the way.
 - **Edit in place.** Sneak and use the tool on a multiblock you placed to change its size, tier or parts. Only the blocks that change are swapped; you pay for the new ones and get the old ones back.
 - **Dismantle.** Hold use on a multiblock you placed. Its blocks go to the ME network, then your inventory.
@@ -18,6 +18,10 @@ Forge 1.20.1. AE2 is optional.
 - Respects claims and protection: every block is checked as if you placed or broke it yourself.
 
 Optional integrations: JEI, Mekanism and Mekanism Generators, More Thermal Evaporation (evaporation tiers), Mekanism Extras (absolute to infinite induction tiers), Void Miners, Masterful Machinery, NuclearCraft, ExtendedAE. Anything that is not installed is simply left out.
+
+## Languages
+
+English, German, French, Spanish, Italian, Brazilian Portuguese, Polish, Russian, Simplified Chinese and Japanese. Corrections and new languages are welcome: copy `assets/formwork/lang/en_us.json`.
 
 ## Crafting
 

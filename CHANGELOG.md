@@ -12,4 +12,5 @@ First public release, for Forge 1.20.1.
 - JEI: structures as recipes of their materials, with a preview.
 - Placement card: anchor, move, turn, skip blocked spots.
 - Edit a placed multiblock in place, or dismantle it and get the blocks back.
+- Translated into German, French, Spanish, Italian, Brazilian Portuguese, Polish, Russian, Simplified Chinese and Japanese.
 - Structures and variant sets come from datapacks (`data/<namespace>/formwork/...`).
