@@ -139,7 +139,7 @@ public class EditorScreen extends Screen {
         y0 = 8;
         w = width - 16;
         h = height - 16;
-        sideW = Math.max(160, Math.min(240, w * 34 / 100));
+        sideW = Math.max(172, Math.min(240, w * 34 / 100)); // 172: the three tab labels, with a count, fit side by side
         rebuild(true);
     }
 
@@ -628,18 +628,41 @@ public class EditorScreen extends Screen {
         }
     }
 
+    private record TabCell(Tab tab, Component label, int x, int w) {
+    }
+
+    /** Tabs sized by their labels (word and red count), sharing the spare width; only when they cannot all fit are words shortened, never the count. */
+    private List<TabCell> tabCells() {
+        int n = tabs.size(), avail = sideW - 8;
+        String[] names = new String[n], counts = new String[n];
+        int[] w = new int[n];
+        int sum = 0;
+        for (int i = 0; i < n; i++) {
+            Tab t = tabs.get(i);
+            int m = t == Tab.MATERIALS ? missing() : t == Tab.VARIANTS ? problems() : 0;
+            counts[i] = m > 0 ? " " + m : "";
+            names[i] = Component.translatable("formwork.gui.tab." + t.name().toLowerCase(Locale.ROOT)).getString();
+            sum += w[i] = font.width(names[i] + counts[i]) + 8;
+        }
+        for (int i = 0; i < n; i++) {
+            w[i] = sum <= avail ? w[i] + (avail - sum) / n : avail / n;
+            int room = w[i] - 6 - font.width(counts[i]);
+            if (font.width(names[i]) > room) names[i] = font.plainSubstrByWidth(names[i], Math.max(0, room - font.width("…"))) + "…";
+        }
+        List<TabCell> out = new ArrayList<>();
+        int x = sideX() + 4;
+        for (int i = 0; i < n; i++) {
+            out.add(new TabCell(tabs.get(i), Component.literal(names[i]).append(Component.literal(counts[i]).withStyle(st -> st.withColor(RED))), x, w[i]));
+            x += w[i];
+        }
+        return out;
+    }
+
     private void renderSide(GuiGraphics g, int mx, int my) {
         int x = sideX(), top = bodyTop();
         g.fill(x, top, x + sideW, bodyBottom(), PANEL);
         g.renderOutline(x, top, sideW, bodyBottom() - top, BORDER);
-        int tw = (sideW - 8) / tabs.size();
-        for (int i = 0; i < tabs.size(); i++) {
-            Tab t = tabs.get(i);
-            Component label = Component.translatable("formwork.gui.tab." + t.name().toLowerCase(Locale.ROOT));
-            int m = t == Tab.MATERIALS ? missing() : t == Tab.VARIANTS ? problems() : 0;
-            if (m > 0) label = label.copy().append(Component.literal(" " + m).withStyle(s -> s.withColor(RED)));
-            button(g, font, x + 4 + i * tw, top + 4, tw - 2, TAB, label, t == tab, mx, my);
-        }
+        for (TabCell c : tabCells()) button(g, font, c.x(), top + 4, c.w() - 2, TAB, c.label(), c.tab() == tab, mx, my);
         int ct = contentTop(), bottom = bodyBottom() - 4, cx = x + 6, cw = sideW - 12;
         g.enableScissor(x + 1, ct, x + sideW - 1, bottom);
         int y = ct - sideScroll;
@@ -696,10 +719,10 @@ public class EditorScreen extends Screen {
             pressSlot = hoveredSlot;
             return true;
         }
-        int x = sideX(), tw = (sideW - 8) / tabs.size();
-        for (int i = 0; i < tabs.size(); i++)
-            if (in(mx, my, x + 4 + i * tw, bodyTop() + 4, tw - 2, TAB)) {
-                tab = tabs.get(i);
+        int x = sideX();
+        for (TabCell c : tabCells())
+            if (in(mx, my, c.x(), bodyTop() + 4, c.w() - 2, TAB)) {
+                tab = c.tab();
                 sideScroll = 0;
                 lines = buildLines();
                 return true;
