@@ -71,4 +71,6 @@ processResources {
     filesMatching('META-INF/mods.toml') { expand version: version }
 }
 
+jar { from('LICENSE.md') } // MIT: the notice ships with every copy
+
 jar.finalizedBy 'reobfJar'
