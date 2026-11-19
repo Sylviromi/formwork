@@ -33,7 +33,12 @@ public record Blueprint(String id, Map<BlockPos, BlockSpec> blocks) {
             if (state < 0 || state >= specs.length || SKIPPED.contains(specs[state].id())) continue;
             ListTag pos = b.getList("pos", Tag.TAG_INT);
             BlockSpec spec = specs[state];
-            if (b.contains("nbt")) spec = new BlockSpec(spec.id(), spec.props(), b.getCompound("nbt"));
+            if (b.contains("nbt")) {
+                CompoundTag nbt = b.getCompound("nbt");
+                // Mekanism keys a multiblock's cached contents by this id; every placed copy would share the author's
+                nbt.remove("inventoryID");
+                spec = new BlockSpec(spec.id(), spec.props(), nbt);
+            }
             blocks.put(new BlockPos(pos.getInt(0), pos.getInt(1), pos.getInt(2)), spec);
         }
         return new Blueprint(id, blocks);
