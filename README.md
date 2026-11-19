@@ -56,6 +56,10 @@ Structures and variant sets are plain datapack files, so any pack can add its ow
 
 Java 17: `./gradlew build`. The jar is written to `build/libs/`.
 
+## Credits
+
+Inspired by igentuman's [Multi Builder Tool](https://github.com/igentuman/multi-builder-tool).
+
 ## License
 
 MIT, see [LICENSE.md](LICENSE.md).
