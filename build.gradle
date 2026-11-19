@@ -51,6 +51,7 @@ dependencies {
 
     compileOnly fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}") // full jar: the craft screens (CraftAmountMenu, MenuLocators) are not in the api
     runtimeOnly fg.deobf("appeng:appliedenergistics2-forge:${ae2_version}")
+    compileOnly fg.deobf("mezz.jei:jei-${mc_version}-forge:${jei_version}")
     runtimeOnly fg.deobf("mezz.jei:jei-${mc_version}-forge:${jei_version}")
     runtimeOnly fg.deobf("mekanism:Mekanism:${mc_version}-${mekanism_version}")
     runtimeOnly fg.deobf("mekanism:Mekanism:${mc_version}-${mekanism_version}:generators")

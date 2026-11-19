@@ -14,9 +14,10 @@ Forge 1.20.1. AE2 is optional.
 - **Placement card (H).** Anchor the preview, move it block by block, turn it. Hold Ctrl when placing to skip spots that are in the way.
 - **Edit in place.** Sneak and use the tool on a multiblock you placed to change its size, tier or parts. Only the blocks that change are swapped; you pay for the new ones and get the old ones back.
 - **Dismantle.** Hold use on a multiblock you placed. Its blocks go to the ME network, then your inventory.
+- **JEI.** Every structure is a recipe listing its materials, with a spinning preview: U on a block shows the structures that use it, R on the tool shows them all.
 - Respects claims and protection: every block is checked as if you placed or broke it yourself.
 
-Optional integrations: Mekanism and Mekanism Generators, More Thermal Evaporation (evaporation tiers), Mekanism Extras (absolute to infinite induction tiers), Void Miners, Masterful Machinery, NuclearCraft, ExtendedAE. Anything that is not installed is simply left out.
+Optional integrations: JEI, Mekanism and Mekanism Generators, More Thermal Evaporation (evaporation tiers), Mekanism Extras (absolute to infinite induction tiers), Void Miners, Masterful Machinery, NuclearCraft, ExtendedAE. Anything that is not installed is simply left out.
 
 ## Crafting
 

@@ -160,6 +160,12 @@ public final class DevHooks {
                 ForgeRegistries.ITEMS.getValue(new net.minecraft.resources.ResourceLocation("mekanismgenerators:reactor_glass")), 146)));
         step(t += 10, null, mc -> onServer(mc, sp -> { if (sp.containerMenu instanceof appeng.menu.me.crafting.CraftAmountMenu m) m.confirm(146, false, false); }));
         step(t += 40, "ae2_own_plan", null);
+        // JEI: every structure, then the ones using reactor glass
+        step(t += 5, null, mc -> mc.setScreen(null));
+        step(t += 5, null, mc -> JeiStructures.devShow(null));
+        step(t += 40, "jei_structures", null);
+        step(t += 5, null, mc -> JeiStructures.devShow(new ItemStack(reactorBlock("reactor_glass"))));
+        step(t += 40, "jei_uses", null);
         step(t += 20, null, Minecraft::stop);
     }
 
