@@ -21,7 +21,8 @@ import static dev.sylviromi.formwork.client.Ui.*;
  * Arrow keys move relative to where the player looks, Page Up/Down vertically, R turns. Shift moves by 10.
  */
 public class PlacementScreen extends Screen {
-    private static final int W = 134, B = 15;
+    /** B: a button; GRID: a 3x3 block of them GAP apart (the compass and the move pad). */
+    private static final int W = 134, B = CTRL, GRID = 3 * B + 2 * GAP;
     private final List<Btn> buttons = new ArrayList<>();
     private int x0, y0, h;
 
@@ -93,27 +94,28 @@ public class PlacementScreen extends Screen {
     @Override
     protected void init() {
         buttons.clear();
-        h = 106;
-        x0 = 8;
+        int gridY = PAD + B + PAD, lowY = gridY + GRID + PAD;
+        h = lowY + B + INSET + 9 + PAD; // the last line is the offset readout
+        x0 = MARGIN;
         y0 = (height - h) / 2;
-        int x = x0 + 6, right = x0 + W - 6;
-        icon(right - B, y0 + 4, B, Icon.ANCHOR, Component.translatable("formwork.gui.anchor_tip"), () -> PlacerItem.anchor(tool()) != null,
+        int x = x0 + PAD, right = x0 + W - PAD, gy = y0 + gridY, ly = y0 + lowY, step = B + GAP;
+        icon(right - B, y0 + PAD, B, Icon.ANCHOR, Component.translatable("formwork.gui.anchor_tip"), () -> PlacerItem.anchor(tool()) != null,
                 () -> ClientHooks.toggleAnchor(tool()), ANCHOR);
         // compass, N up like a map: sets which way the structure faces
-        int cx = x + 22, cy = y0 + 44, half = B / 2;
         for (Direction d : new Direction[]{Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST})
-            text(cx - half + d.getStepX() * 15, cy - half + d.getStepZ() * 15, B, d.getName().substring(0, 1).toUpperCase(java.util.Locale.ROOT),
+            text(x + (1 + d.getStepX()) * step, gy + (1 + d.getStepZ()) * step, B, d.getName().substring(0, 1).toUpperCase(java.util.Locale.ROOT),
                     Component.translatable("formwork.gui.face", Component.translatable("formwork.dir." + d.getName())), () -> facing() == d, () -> face(d), NORMAL);
         // pad: moves relative to where the player looks
-        int pw = 3 * B + 4, px = right - pw, pcx = px + B + 2, pcy = cy - half;
-        icon(pcx, pcy - B - 2, B, Icon.UP, Component.translatable("formwork.gui.forward"), () -> false, () -> move(look(), step()), NORMAL);
-        icon(pcx, pcy + B + 2, B, Icon.DOWN, Component.translatable("formwork.gui.backward"), () -> false, () -> move(look(), -step()), NORMAL);
-        icon(px, pcy, B, Icon.LEFT, Component.translatable("formwork.gui.left"), () -> false, () -> move(look().getCounterClockWise(), step()), NORMAL);
-        icon(px + 2 * B + 4, pcy, B, Icon.RIGHT, Component.translatable("formwork.gui.right"), () -> false, () -> move(look().getClockWise(), step()), NORMAL);
-        int uy = cy + 28, vw = (pw - 2) / 2;
-        icon(px, uy, vw, Icon.TOP, Component.translatable("formwork.gui.up"), () -> false, () -> move(Direction.UP, step()), NORMAL);
-        icon(right - vw, uy, vw, Icon.BOTTOM, Component.translatable("formwork.gui.down"), () -> false, () -> move(Direction.DOWN, step()), NORMAL);
-        text(x, uy, cx + 22 + half - x, Component.translatable("controls.reset").getString(), Component.translatable("formwork.gui.reset"), () -> false, () -> edit(t -> {
+        int px = right - GRID;
+        icon(px + step, gy, B, Icon.UP, Component.translatable("formwork.gui.forward"), () -> false, () -> move(look(), step()), NORMAL);
+        icon(px + step, gy + 2 * step, B, Icon.DOWN, Component.translatable("formwork.gui.backward"), () -> false, () -> move(look(), -step()), NORMAL);
+        icon(px, gy + step, B, Icon.LEFT, Component.translatable("formwork.gui.left"), () -> false, () -> move(look().getCounterClockWise(), step()), NORMAL);
+        icon(px + 2 * step, gy + step, B, Icon.RIGHT, Component.translatable("formwork.gui.right"), () -> false, () -> move(look().getClockWise(), step()), NORMAL);
+        // under the pad: up and down share its width; under the compass: reset
+        int uw = (GRID - GAP) / 2;
+        icon(px, ly, uw, Icon.TOP, Component.translatable("formwork.gui.up"), () -> false, () -> move(Direction.UP, step()), NORMAL);
+        icon(px + uw + GAP, ly, GRID - uw - GAP, Icon.BOTTOM, Component.translatable("formwork.gui.down"), () -> false, () -> move(Direction.DOWN, step()), NORMAL);
+        text(x, ly, GRID, Component.translatable("controls.reset").getString(), Component.translatable("formwork.gui.reset"), () -> false, () -> edit(t -> {
             t.putIntArray(PlacerItem.OFFSET, new int[3]);
             t.putInt(PlacerItem.ROTATION, 0);
         }), NORMAL);
@@ -128,9 +130,9 @@ public class PlacementScreen extends Screen {
         // no background: the world and the ghost stay visible
         g.fill(x0, y0, x0 + W, y0 + h, BG);
         g.renderOutline(x0, y0, W, h, BORDER);
-        g.drawString(font, title, x0 + 6, y0 + 8, ACCENT, false);
+        g.drawString(font, title, x0 + PAD, textY(y0 + PAD, B), ACCENT, false);
         int[] o = PlacerItem.offset(tool());
-        g.drawCenteredString(font, "x " + o[0] + "  y " + o[1] + "  z " + o[2], x0 + W / 2, y0 + 93, DIM);
+        g.drawCenteredString(font, "x " + o[0] + "  y " + o[1] + "  z " + o[2], x0 + W / 2, y0 + h - PAD - 8, DIM);
         for (Btn b : buttons) {
             boolean hover = b.over(mx, my), on = b.on().getAsBoolean();
             int fill = !on ? (hover ? BTN_HOVER : BTN) : b.style() == ANCHOR ? 0xFF6B5A1F : BTN_ON;
@@ -139,7 +141,7 @@ public class PlacementScreen extends Screen {
             g.renderOutline(b.x(), b.y(), b.w(), B, edge);
             int color = on && b.style() == ANCHOR ? YELLOW : hover ? 0xFFFFFFFF : TEXT;
             if (b.icon() != null) Ui.icon(g, b.icon(), b.x() + (b.w() - 9) / 2, b.y() + (B - 9) / 2, color);
-            else g.drawCenteredString(font, b.label(), b.x() + (b.w() + 1) / 2, b.y() + (B - 7) / 2, color);
+            else g.drawCenteredString(font, b.label(), b.x() + (b.w() + 1) / 2, textY(b.y(), B), color);
             if (hover) setTooltipForNextRenderPass(b.tip());
         }
         super.render(g, mx, my, partial);

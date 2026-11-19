@@ -28,7 +28,27 @@ final class Ui {
             HOVER = 0x2A4FD1FF, RED = 0xFFFF6B6B, GREEN = 0xFF6BE58A, YELLOW = 0xFFFFD166, VIEW = 0xF0090C10, CELL = 0xFF1B222B,
             BTN = 0xFF1F4E5F, BTN_HOVER = 0xFF24596B, BTN_ON = 0xFF2B6F87;
 
+    /**
+     * Spacing every screen shares (GUI pixels): GAP between the controls of a group, INSET from a panel's edge to what sits on
+     * it, PAD around and between panels and from a panel's edge to its text; CTRL is a control's height (odd, so the 9px icons
+     * centre), ROW a list row's (an item icon plus a pixel above and below).
+     */
+    static final int GAP = 2, INSET = 4, PAD = 6, CTRL = 15, ROW = 18;
+    /** From the screen's edge to a full-screen frame. */
+    static final int MARGIN = 8;
+
+    /** A flat text field in the house style: the frame is ours, the EditBox (borderless) only draws its text. */
+    static void field(GuiGraphics g, int x, int y, int w, boolean focused) {
+        g.fill(x, y, x + w, y + CTRL, CELL);
+        g.renderOutline(x, y, w, CTRL, focused ? ACCENT : BORDER);
+    }
+
     private Ui() {
+    }
+
+    /** Where text sits to look centred in a box of height h at y (the font's glyphs are 7px tall). */
+    static int textY(int y, int h) {
+        return y + (h - 7) / 2;
     }
 
     static boolean in(double mx, double my, int x, int y, int w, int h) {
@@ -57,7 +77,7 @@ final class Ui {
     /** Flat text button; returns whether the mouse is over it. */
     static boolean button(GuiGraphics g, Font font, int x, int y, int w, int h, Component label, boolean on, int mx, int my) {
         boolean hover = frame(g, x, y, w, h, on, mx, my);
-        g.drawCenteredString(font, label, x + (w + 1) / 2, y + (h - 8) / 2, TEXT);
+        g.drawCenteredString(font, label, x + (w + 1) / 2, textY(y, h), TEXT);
         return hover;
     }
 

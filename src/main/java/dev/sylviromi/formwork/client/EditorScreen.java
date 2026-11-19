@@ -27,7 +27,10 @@ import static dev.sylviromi.formwork.client.Ui.*;
 
 /** Edits one multiblock: big 3D view on the left, Settings / Variants / Materials tabs on the right. Changes go to the tool live. */
 public class EditorScreen extends Screen {
-    private static final int ROW = 14, PAD = 6, BAR = 20, TAB = 16, CELL_SIZE = 20, GRID_TOP = 20;
+    /** Variant grid cells: an item icon in a frame, GAP apart. */
+    private static final int CELL_SIZE = 18 + GAP;
+    /** Row highlights reach this far past the text, so they line up with the tabs at INSET from the panel edge. */
+    private static final int BLEED = PAD - INSET;
     private enum Tab {SETTINGS, VARIANTS, MATERIALS}
 
     private final Catalog.Entry entry;
@@ -135,11 +138,11 @@ public class EditorScreen extends Screen {
 
     @Override
     protected void init() {
-        x0 = 8;
-        y0 = 8;
-        w = width - 16;
-        h = height - 16;
-        sideW = Math.max(172, Math.min(240, w * 34 / 100)); // 172: the three tab labels, with a count, fit side by side
+        x0 = MARGIN;
+        y0 = MARGIN;
+        w = width - 2 * MARGIN;
+        h = height - 2 * MARGIN;
+        sideW = Math.max(180, Math.min(240, w * 34 / 100)); // 180: the three tab labels, with a count, fit side by side
         rebuild(true);
     }
 
@@ -192,45 +195,53 @@ public class EditorScreen extends Screen {
 
     private Line header(Component text, String right) {
         return new Line() {
-            @Override public int height() { return ROW + 4; }
-
             @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
-                g.drawString(font, font.plainSubstrByWidth(text.getString(), w - font.width(right) - 4), x, y + 6, ACCENT, false);
-                g.drawString(font, right, x + w - font.width(right), y + 6, DIM, false);
-                g.fill(x, y + 16, x + w, y + 17, BORDER);
+                g.drawString(font, font.plainSubstrByWidth(text.getString(), w - font.width(right) - GAP), x, textY(y, ROW), ACCENT, false);
+                g.drawString(font, right, x + w - font.width(right), textY(y, ROW), DIM, false);
+                g.fill(x, y + ROW - 1, x + w, y + ROW, BORDER);
             }
         };
     }
 
     private Line text(Component text, int color) {
-        return (g, x, y, w, mx, my) -> g.drawString(font, font.plainSubstrByWidth(text.getString(), w), x, y + 3, color, false);
+        return (g, x, y, w, mx, my) -> g.drawString(font, font.plainSubstrByWidth(text.getString(), w), x, textY(y, ROW), color, false);
     }
 
-    /** "label   < value >": click the arrows, shift steps by 10. */
-    private Line stepper(Component label, Supplier<String> value, IntConsumer step) {
+    /**
+     * "label   < value >": click the arrows, shift steps by 10. valueW: the value column's width, the same for every stepper
+     * of a tab, so the arrows line up whatever the values are.
+     */
+    private Line stepper(Component label, Supplier<String> value, IntConsumer step, int valueW) {
         return new Line() {
-            @Override public int height() { return ROW + 2; }
+            int leftX(int x, int w) { return x + w - CTRL - GAP - valueW - GAP - CTRL; }
 
             @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
-                String v = value.get();
-                int vw = Math.max(24, font.width(v) + 4), rx = x + w;
-                if (in(mx, my, x - 3, y, w + 6, height())) g.fill(x - 3, y, x + w + 3, y + height(), HOVER);
-                String shown = font.plainSubstrByWidth(label.getString(), w - vw - 34);
-                g.drawString(font, shown, x, y + 4, TEXT, false);
-                if (shown.length() < label.getString().length() && in(mx, my, x, y, w - vw - 34, height())) setTooltipForNextRenderPass(label);
-                button(g, rx - vw - 28, y + 1, 13, 13, Icon.LEFT, false, mx, my);
-                g.drawCenteredString(font, v, rx - 14 - vw / 2, y + 4, TEXT);
-                button(g, rx - 13, y + 1, 13, 13, Icon.RIGHT, false, mx, my);
+                int lx = leftX(x, w), cy = y + (ROW - CTRL) / 2, room = lx - x - PAD;
+                if (in(mx, my, x - BLEED, y, w + 2 * BLEED, ROW)) g.fill(x - BLEED, y, x + w + BLEED, y + ROW, HOVER);
+                String shown = font.plainSubstrByWidth(label.getString(), room);
+                g.drawString(font, shown, x, textY(y, ROW), TEXT, false);
+                if (shown.length() < label.getString().length() && in(mx, my, x, y, room, ROW)) setTooltipForNextRenderPass(label);
+                button(g, lx, cy, CTRL, CTRL, Icon.LEFT, false, mx, my);
+                g.drawCenteredString(font, font.plainSubstrByWidth(value.get(), valueW), lx + CTRL + GAP + valueW / 2, textY(y, ROW), TEXT);
+                button(g, x + w - CTRL, cy, CTRL, CTRL, Icon.RIGHT, false, mx, my);
             }
 
             @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
-                int vw = Math.max(24, font.width(value.get()) + 4), rx = x + w, d = hasShiftDown() ? 10 : 1;
-                if (in(mx, my, rx - vw - 28, y + 1, 13, 13)) step.accept(-d);
-                else if (in(mx, my, rx - 13, y + 1, 13, 13)) step.accept(d);
+                int cy = y + (ROW - CTRL) / 2, d = hasShiftDown() ? 10 : 1;
+                if (in(mx, my, leftX(x, w), cy, CTRL, CTRL)) step.accept(-d);
+                else if (in(mx, my, x + w - CTRL, cy, CTRL, CTRL)) step.accept(d);
                 else return false;
                 return true;
             }
         };
+    }
+
+    /** The widest value a parameter can show, so its stepper's column fits all of them. */
+    private int valueWidth(Param p) {
+        int wd = Math.max(font.width(String.valueOf(p.min())), font.width(String.valueOf(p.max())));
+        if (p.auto()) wd = Math.max(wd, font.width(p.valueLabel(p.autoValue())));
+        if (!p.labels().isEmpty()) for (int v = p.min(); v <= p.max(); v++) wd = Math.max(wd, font.width(p.valueLabel(v)));
+        return wd + 2 * GAP;
     }
 
     private static ItemStack iconOf(String blockId) {
@@ -242,13 +253,11 @@ public class EditorScreen extends Screen {
     /** On/off switch row; the whole row toggles. */
     private Line toggle(Component label, java.util.function.BooleanSupplier on, Runnable flip) {
         return new Line() {
-            @Override public int height() { return ROW + 2; }
-
             @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
-                boolean hover = in(mx, my, x - 3, y, w + 6, height()), v = on.getAsBoolean();
-                if (hover) g.fill(x - 3, y, x + w + 3, y + height(), HOVER);
-                g.drawString(font, font.plainSubstrByWidth(label.getString(), w - 34), x, y + 4, TEXT, false);
-                int sx = x + w - 26, sy = y + 3;
+                boolean hover = in(mx, my, x - BLEED, y, w + 2 * BLEED, ROW), v = on.getAsBoolean();
+                if (hover) g.fill(x - BLEED, y, x + w + BLEED, y + ROW, HOVER);
+                g.drawString(font, font.plainSubstrByWidth(label.getString(), w - 26 - PAD), x, textY(y, ROW), TEXT, false);
+                int sx = x + w - 26, sy = y + (ROW - 10) / 2;
                 g.fill(sx, sy, sx + 26, sy + 10, v ? 0xFF2B8A5A : CELL);
                 g.renderOutline(sx, sy, 26, 10, v ? GREEN : hover ? ACCENT : BORDER);
                 int knob = v ? sx + 15 : sx + 1;
@@ -265,16 +274,16 @@ public class EditorScreen extends Screen {
     /** One set: its name and how many of its blocks are changed; click to start editing its first block. */
     private Line setRow(VariantSet set, int n) {
         return new Line() {
-            @Override public int height() { return 20; }
+            @Override public int height() { return ROW + GAP; } // a gap between the row cards
 
             @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
-                boolean hover = in(mx, my, x - 3, y, w + 6, height());
-                g.fill(x - 3, y + 1, x + w + 3, y + height() - 1, hover ? BTN_HOVER : CELL);
+                boolean hover = in(mx, my, x - BLEED, y, w + 2 * BLEED, ROW);
+                g.fill(x - BLEED, y, x + w + BLEED, y + ROW, hover ? BTN_HOVER : CELL);
                 List<BlockPos> setSlots = slotsOf(set.id());
-                g.renderItem(iconOf(setSlots.isEmpty() ? set.blocks().get(0) : blockAt(setSlots.get(0))), x, y + 2);
+                g.renderItem(iconOf(setSlots.isEmpty() ? set.blocks().get(0) : blockAt(setSlots.get(0))), x, y + 1);
                 String count = Component.translatable("formwork.gui.changed", VariantCounts.used(setSlots, overrides), n).getString();
-                g.drawString(font, font.plainSubstrByWidth(setName(set).getString(), w - 22 - font.width(count)), x + 19, y + 6, TEXT, false);
-                g.drawString(font, count, x + w - font.width(count), y + 6, DIM, false);
+                g.drawString(font, font.plainSubstrByWidth(setName(set).getString(), w - 16 - INSET - PAD - font.width(count)), x + 16 + INSET, textY(y, ROW), TEXT, false);
+                g.drawString(font, count, x + w - font.width(count), textY(y, ROW), DIM, false);
             }
 
             @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
@@ -287,9 +296,10 @@ public class EditorScreen extends Screen {
 
     private Line actionLine(Component label, Runnable action) {
         return new Line() {
-            @Override public int height() { return 22; }
+            @Override public int height() { return ROW + GAP; }
+
             @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
-                Ui.button(g, font, x, y + 3, w, 16, label, false, mx, my);
+                Ui.button(g, font, x - BLEED, y + (ROW - CTRL) / 2, w + 2 * BLEED, CTRL, label, false, mx, my);
             }
 
             @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
@@ -340,12 +350,13 @@ public class EditorScreen extends Screen {
             case SETTINGS -> generator().ifPresent(gen -> {
                 List<Param> ps = gen.params();
                 params = Resolver.clampedParams(gen, params);
+                int valueW = Math.min(sideW / 2, ps.stream().mapToInt(this::valueWidth).max().orElse(0));
                 for (int i = 0; i < ps.size(); i++) {
                     int idx = i;
                     Param p = ps.get(i);
                     if (p.labels().equals(Param.toggle("", false).labels())) out.add(toggle(p.label(), () -> params[idx] == 1, () -> { params[idx] = 1 - params[idx]; rebuild(true); }));
                     else out.add(stepper(p.label(), () -> p.valueLabel(params[idx]).getString(),
-                            d -> { params[idx] = p.clamp(params[idx] + d); rebuild(true); }));
+                            d -> { params[idx] = p.clamp(params[idx] + d); rebuild(true); }, valueW));
                 }
             });
             case VARIANTS -> {
@@ -377,15 +388,13 @@ public class EditorScreen extends Screen {
                     boolean canCraft = me && r.missing() > 0 && r.craftable();
                     ItemStack stack = new ItemStack(r.item());
                     out.add(new Line() {
-                        @Override public int height() { return 18; }
-
                         @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
-                            if (in(mx, my, x - 3, y, w + 6, 18)) g.fill(x - 3, y, x + w + 3, y + 18, HOVER);
+                            if (in(mx, my, x - BLEED, y, w + 2 * BLEED, ROW)) g.fill(x - BLEED, y, x + w + BLEED, y + ROW, HOVER);
                             g.renderItem(stack, x, y + 1);
                             String count = (r.crafting() >= 0 ? craftLabel(r) + "  " : "") + Math.min(have, r.needed()) + "/" + r.needed();
-                            g.drawString(font, font.plainSubstrByWidth(stack.getHoverName().getString(), w - 24 - font.width(count)), x + 18, y + 5, TEXT, false);
-                            g.drawString(font, count, x + w - font.width(count), y + 5, color, false);
-                            if (in(mx, my, x, y, w, 18))
+                            g.drawString(font, font.plainSubstrByWidth(stack.getHoverName().getString(), w - 16 - INSET - PAD - font.width(count)), x + 16 + INSET, textY(y, ROW), TEXT, false);
+                            g.drawString(font, count, x + w - font.width(count), textY(y, ROW), color, false);
+                            if (in(mx, my, x, y, w, ROW))
                                 setTooltipForNextRenderPass(Component.literal(stack.getHoverName().getString() + "\n" + Component.translatable("formwork.gui.in_inventory", r.inventory()).getString()
                                         + (r.me() >= 0 ? "\n" + Component.translatable("formwork.gui.in_me", r.me()).getString() : "")
                                         + (canCraft ? "\n" + Component.translatable("formwork.gui.click_craft").getString() : "")));
@@ -408,11 +417,25 @@ public class EditorScreen extends Screen {
 
     // ---------- geometry ----------
 
-    private int bodyTop() { return y0 + BAR + 4; }
+    private int barY() { return y0 + PAD; }
+
+    /** Back (or Cancel) fits its own word. */
+    private int backW() {
+        return font.width(Component.translatable(editing != null ? "gui.cancel" : "gui.back")) + 2 * PAD;
+    }
+
+    /** The view's toolbar: {turn left x, turn right x, reset x, spin x, y, reset width, spin width}; buttons fit their words. */
+    private int[] toolbar() {
+        int x = viewX() + INSET, y = bodyTop() + INSET;
+        int rw = font.width(Component.translatable("controls.reset")) + 2 * PAD, sw = font.width(Component.translatable("formwork.gui.spin")) + 2 * PAD;
+        int cw = x + CTRL + GAP, rx = cw + CTRL + GAP;
+        return new int[]{x, cw, rx, rx + rw + GAP, y, rw, sw};
+    }
+    private int bodyTop() { return barY() + CTRL + PAD; }
     /** Tier selector in the top bar: {left arrow x, text x, right arrow x}, laid out from the right edge. */
     private int[] tierBox() {
-        int right = x0 + w - PAD - 15, textX = right - 6 - font.width(tierText());
-        return new int[]{textX - 6 - 15, textX, right};
+        int right = x0 + w - PAD - CTRL, textX = right - PAD - font.width(tierText());
+        return new int[]{textX - PAD - CTRL, textX, right};
     }
 
     private String tierText() {
@@ -421,17 +444,19 @@ public class EditorScreen extends Screen {
 
     /** Apply sits left of the tier selector (or at the right edge without tiers). */
     private int applyX() {
-        return entry.members().size() <= 1 ? x0 + w - PAD - 50 : tierBox()[0] - 8 - 50;
+        return entry.members().size() <= 1 ? x0 + w - PAD - 50 : tierBox()[0] - PAD - 50;
     }
     private int bodyBottom() { return y0 + h - PAD; }
     private int sideX() { return x0 + w - sideW - PAD; }
     private int viewX() { return x0 + PAD; }
     private int viewW() { return sideX() - PAD - viewX(); }
     private int viewH() { return bodyBottom() - bodyTop(); }
-    private int contentTop() { return bodyTop() + TAB + 6; }
-    private int sliderX() { return viewX() + viewW() - 14; }
-    private int sliderTop() { return bodyTop() + 24; }
-    private int sliderBottom() { return bodyBottom() - 24; }
+    private int contentTop() { return bodyTop() + INSET + CTRL + INSET; }
+    /** The view's bottom line: the controls hint on the left, the layer count on the right. */
+    private int footY() { return bodyBottom() - INSET - CTRL; }
+    private int sliderX() { return viewX() + viewW() - INSET - 10; }
+    private int sliderTop() { return bodyTop() + INSET + CTRL + PAD; }
+    private int sliderBottom() { return footY() - INSET; }
 
     // ---------- rendering ----------
 
@@ -452,22 +477,22 @@ public class EditorScreen extends Screen {
     }
 
     private void renderTopBar(GuiGraphics g, int mx, int my) {
-        int y = y0 + 4;
-        button(g, font, x0 + PAD, y, 44, 15, Component.translatable(editing != null ? "gui.cancel" : "gui.back"), false, mx, my);
+        int y = barY();
+        button(g, font, x0 + PAD, y, backW(), CTRL, Component.translatable(editing != null ? "gui.cancel" : "gui.back"), false, mx, my);
         Component name = PlacerItem.displayName(currentId());
         if (editing != null) name = Component.translatable("formwork.gui.editing", name);
-        g.drawString(font, font.plainSubstrByWidth(name.getString(), w / 2), x0 + PAD + 52, y + 4, editing != null ? YELLOW : TEXT, false);
+        g.drawString(font, font.plainSubstrByWidth(name.getString(), w / 2), x0 + PAD + backW() + PAD, textY(y, CTRL), editing != null ? YELLOW : TEXT, false);
         if (editing != null) {
             long missing = missingKinds();
-            boolean hover = missing > 0 ? Ui.frame(g, applyX(), y, 50, 15, false, mx, my) : button(g, font, applyX(), y, 50, 15, Component.translatable("formwork.gui.apply"), true, mx, my);
-            if (missing > 0) g.drawCenteredString(font, Component.translatable("formwork.gui.apply"), applyX() + 25, y + 4, DIM);
+            boolean hover = missing > 0 ? Ui.frame(g, applyX(), y, 50, CTRL, false, mx, my) : button(g, font, applyX(), y, 50, CTRL, Component.translatable("formwork.gui.apply"), true, mx, my);
+            if (missing > 0) g.drawCenteredString(font, Component.translatable("formwork.gui.apply"), applyX() + 25, textY(y, CTRL), DIM);
             if (hover) setTooltipForNextRenderPass(Component.translatable(missing > 0 ? "formwork.gui.apply_missing" : "formwork.gui.apply_tip", missing));
         }
         if (entry.members().size() > 1) {
             int[] t = tierBox();
-            button(g, t[0], y, 15, 15, Icon.LEFT, false, mx, my);
-            g.drawString(font, tierText(), t[1], y + 4, ACCENT, false);
-            button(g, t[2], y, 15, 15, Icon.RIGHT, false, mx, my);
+            button(g, t[0], y, CTRL, CTRL, Icon.LEFT, false, mx, my);
+            g.drawString(font, tierText(), t[1], textY(y, CTRL), ACCENT, false);
+            button(g, t[2], y, CTRL, CTRL, Icon.RIGHT, false, mx, my);
         }
     }
 
@@ -494,24 +519,24 @@ public class EditorScreen extends Screen {
                 + "\n" + Component.translatable("formwork.gui.pick_tip").getString()));
         g.disableScissor();
         // toolbar
-        int bx = vx + 4, by = vy + 4;
-        if (button(g, bx, by, 15, 15, Icon.CCW, false, mx, my)) setTooltipForNextRenderPass(Component.translatable("formwork.gui.turn_left"));
-        if (button(g, bx + 18, by, 15, 15, Icon.CW, false, mx, my)) setTooltipForNextRenderPass(Component.translatable("formwork.gui.turn_right"));
-        button(g, font, bx + 36, by, 38, 15, Component.translatable("controls.reset"), false, mx, my);
-        button(g, font, bx + 76, by, 34, 15, Component.translatable("formwork.gui.spin"), view.spin, mx, my);
+        int[] tb = toolbar();
+        if (button(g, tb[0], tb[4], CTRL, CTRL, Icon.CCW, false, mx, my)) setTooltipForNextRenderPass(Component.translatable("formwork.gui.turn_left"));
+        if (button(g, tb[1], tb[4], CTRL, CTRL, Icon.CW, false, mx, my)) setTooltipForNextRenderPass(Component.translatable("formwork.gui.turn_right"));
+        button(g, font, tb[2], tb[4], tb[5], CTRL, Component.translatable("controls.reset"), false, mx, my);
+        button(g, font, tb[3], tb[4], tb[6], CTRL, Component.translatable("formwork.gui.spin"), view.spin, mx, my);
         String count = Component.translatable("formwork.gui.blocks", preview.size()).getString();
-        g.drawString(font, count, vx + vw - 20 - font.width(count), vy + 8, DIM, false);
-        g.drawString(font, Component.translatable("formwork.gui.view_hint"), vx + 4, vy + vh - 12, DIM, false);
+        g.drawString(font, count, vx + vw - INSET - font.width(count), textY(tb[4], CTRL), DIM, false);
+
         // MM-style families: whether the machine will form, always in sight
         if (!checks.isEmpty()) {
             String status = problems() == 0 ? Component.translatable("formwork.gui.check_ok").getString()
                     : Component.translatable("formwork.gui.check_bad").getString() + "  " + String.join(", ", checks.stream().filter(c -> !c.ok())
                     .map(c -> setName(c.set()).getString() + " " + c.actual() + "/" + c.required()).toList());
-            status = font.plainSubstrByWidth(status, vw - 40);
-            int sw = font.width(status) + 10, sy = vy + vh - 28;
-            g.fill(vx + 4, sy, vx + 4 + sw, sy + 13, problems() == 0 ? 0xD0153A26 : 0xD04A1818);
-            g.renderOutline(vx + 4, sy, sw, 13, problems() == 0 ? GREEN : RED);
-            g.drawString(font, status, vx + 9, sy + 3, problems() == 0 ? GREEN : RED, false);
+            status = font.plainSubstrByWidth(status, sliderX() - vx - 2 * INSET - 2 * PAD);
+            int sw = font.width(status) + 2 * PAD, sy = footY() - GAP - CTRL;
+            g.fill(vx + INSET, sy, vx + INSET + sw, sy + CTRL, problems() == 0 ? 0xD0153A26 : 0xD04A1818);
+            g.renderOutline(vx + INSET, sy, sw, CTRL, problems() == 0 ? GREEN : RED);
+            g.drawString(font, status, vx + INSET + PAD, textY(sy, CTRL), problems() == 0 ? GREEN : RED, false);
         }
         // layer slider: top = all layers
         int sx = sliderX(), st = sliderTop(), sb = sliderBottom(), layers = (int) bounds.dy();
@@ -520,7 +545,16 @@ public class EditorScreen extends Screen {
         int ky = sb - (sb - st) * shownLayers / Math.max(1, layers);
         g.fill(sx, ky - 3, sx + 10, ky + 3, draggingSlider || in(mx, my, sx - 2, st - 4, 14, sb - st + 8) ? ACCENT : BTN_ON);
         String lt = layer == 0 ? Component.translatable("formwork.gui.layers_all").getString() : layer + "/" + layers;
-        g.drawString(font, lt, vx + vw - 4 - font.width(lt), sb + 6, DIM, false); // under the slider, kept inside the view
+        g.drawString(font, lt, vx + vw - INSET - font.width(lt), textY(footY(), CTRL), DIM, false); // on the hint's line, under the slider
+        // the controls hint shares the line and stops a PAD short of the layer label
+        int room = vw - INSET - font.width(lt) - 2 * PAD;
+        String hint = "";
+        for (String part : Component.translatable("formwork.gui.view_hint").getString().split("  ")) { // whole parts only, never half a word
+            String next = hint.isEmpty() ? part : hint + "  " + part;
+            if (font.width(next) > room) break;
+            hint = next;
+        }
+        g.drawString(font, hint, vx + PAD, textY(footY(), CTRL), DIM, false);
     }
 
     /** The block a slot has now: the player's choice, else the blueprint's. */
@@ -574,20 +608,20 @@ public class EditorScreen extends Screen {
         List<BlockPos> same = slotsOf(slotMap.get(pos).id());
         Component all = Component.translatable("formwork.gui.all_like", same.size());
         out.add(new Line() {
-            @Override public int height() { return 22; }
+            @Override public int height() { return ROW + GAP; }
 
             @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
-                g.fill(x - 3, y, x + w + 3, y + height(), 0x334FD1FF);
-                g.renderItem(iconOf(now), x, y + 3);
-                int bw = font.width(all) + 8;
-                g.drawString(font, font.plainSubstrByWidth(iconOf(now).getHoverName().getString(), w - 22 - bw), x + 19, y + 7, TEXT, false);
-                if (Ui.button(g, font, x + w - bw, y + 4, bw, 15, all, false, mx, my))
+                g.fill(x - BLEED, y, x + w + BLEED, y + ROW, 0x334FD1FF);
+                g.renderItem(iconOf(now), x, y + 1);
+                int bw = font.width(all) + 2 * PAD;
+                g.drawString(font, font.plainSubstrByWidth(iconOf(now).getHoverName().getString(), w - 16 - INSET - PAD - bw), x + 16 + INSET, textY(y, ROW), TEXT, false);
+                if (Ui.button(g, font, x + w + BLEED - bw, y + (ROW - CTRL) / 2, bw, CTRL, all, false, mx, my))
                     setTooltipForNextRenderPass(Component.translatable("formwork.gui.all_like_tip"));
             }
 
             @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
-                int bw = font.width(all) + 8;
-                if (!in(mx, my, x + w - bw, y + 4, bw, 15)) return false;
+                int bw = font.width(all) + 2 * PAD;
+                if (!in(mx, my, x + w + BLEED - bw, y + (ROW - CTRL) / 2, bw, CTRL)) return false;
                 for (BlockPos p : same) {
                     if (now.equals(base.get(p).id())) overrides.remove(p);
                     else overrides.put(p, now);
@@ -602,15 +636,15 @@ public class EditorScreen extends Screen {
             out.add(new Line() {
                 int cols(int w) { return Math.max(1, w / CELL_SIZE); }
 
-                @Override public int height() { return ((blocks.size() + cols(sideW - 12) - 1) / cols(sideW - 12)) * CELL_SIZE + 2; }
+                @Override public int height() { return ((blocks.size() + cols(sideW - 2 * PAD) - 1) / cols(sideW - 2 * PAD)) * CELL_SIZE + GAP; }
 
                 @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
                     for (int i = 0; i < blocks.size(); i++) {
                         String b = blocks.get(i);
                         int cx = x + (i % cols(w)) * CELL_SIZE, cy = y + (i / cols(w)) * CELL_SIZE;
-                        boolean hover = in(mx, my, cx, cy, CELL_SIZE - 2, CELL_SIZE - 2), on = b.equals(now);
-                        g.fill(cx, cy, cx + CELL_SIZE - 2, cy + CELL_SIZE - 2, on ? BTN_ON : hover ? BTN_HOVER : CELL);
-                        g.renderOutline(cx, cy, CELL_SIZE - 2, CELL_SIZE - 2, on || hover ? ACCENT : b.equals(original) ? DIM : BORDER);
+                        boolean hover = in(mx, my, cx, cy, CELL_SIZE - GAP, CELL_SIZE - GAP), on = b.equals(now);
+                        g.fill(cx, cy, cx + CELL_SIZE - GAP, cy + CELL_SIZE - GAP, on ? BTN_ON : hover ? BTN_HOVER : CELL);
+                        g.renderOutline(cx, cy, CELL_SIZE - GAP, CELL_SIZE - GAP, on || hover ? ACCENT : b.equals(original) ? DIM : BORDER);
                         ItemStack icon = iconOf(b);
                         g.renderItem(icon, cx + 1, cy + 1);
                         if (hover) setTooltipForNextRenderPass(Component.literal(icon.getHoverName().getString()
@@ -633,7 +667,7 @@ public class EditorScreen extends Screen {
 
     /** Tabs sized by their labels (word and red count), sharing the spare width; only when they cannot all fit are words shortened, never the count. */
     private List<TabCell> tabCells() {
-        int n = tabs.size(), avail = sideW - 8;
+        int n = tabs.size(), avail = sideW - 2 * INSET + GAP; // each tab keeps GAP on its right; the last one's falls off
         String[] names = new String[n], counts = new String[n];
         int[] w = new int[n];
         int sum = 0;
@@ -642,15 +676,18 @@ public class EditorScreen extends Screen {
             int m = t == Tab.MATERIALS ? missing() : t == Tab.VARIANTS ? problems() : 0;
             counts[i] = m > 0 ? " " + m : "";
             names[i] = Component.translatable("formwork.gui.tab." + t.name().toLowerCase(Locale.ROOT)).getString();
-            sum += w[i] = font.width(names[i] + counts[i]) + 8;
+            sum += w[i] = font.width(names[i] + counts[i]) + 2 * INSET + GAP;
         }
+        int given = 0;
         for (int i = 0; i < n; i++) {
             w[i] = sum <= avail ? w[i] + (avail - sum) / n : avail / n;
-            int room = w[i] - 6 - font.width(counts[i]);
+            if (i == n - 1) w[i] = avail - given; // the rounding's leftover, so the last tab ends INSET from the edge like the top
+            given += w[i];
+            int room = w[i] - GAP - 2 * GAP - font.width(counts[i]);
             if (font.width(names[i]) > room) names[i] = font.plainSubstrByWidth(names[i], Math.max(0, room - font.width("…"))) + "…";
         }
         List<TabCell> out = new ArrayList<>();
-        int x = sideX() + 4;
+        int x = sideX() + INSET;
         for (int i = 0; i < n; i++) {
             out.add(new TabCell(tabs.get(i), Component.literal(names[i]).append(Component.literal(counts[i]).withStyle(st -> st.withColor(RED))), x, w[i]));
             x += w[i];
@@ -662,8 +699,8 @@ public class EditorScreen extends Screen {
         int x = sideX(), top = bodyTop();
         g.fill(x, top, x + sideW, bodyBottom(), PANEL);
         g.renderOutline(x, top, sideW, bodyBottom() - top, BORDER);
-        for (TabCell c : tabCells()) button(g, font, c.x(), top + 4, c.w() - 2, TAB, c.label(), c.tab() == tab, mx, my);
-        int ct = contentTop(), bottom = bodyBottom() - 4, cx = x + 6, cw = sideW - 12;
+        for (TabCell c : tabCells()) button(g, font, c.x(), top + INSET, c.w() - GAP, CTRL, c.label(), c.tab() == tab, mx, my);
+        int ct = contentTop(), bottom = bodyBottom() - INSET, cx = x + PAD, cw = sideW - 2 * PAD;
         g.enableScissor(x + 1, ct, x + sideW - 1, bottom);
         int y = ct - sideScroll;
         for (Line l : lines) {
@@ -678,12 +715,12 @@ public class EditorScreen extends Screen {
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
         if (super.mouseClicked(mx, my, button)) return true;
-        int y = y0 + 4;
-        if (in(mx, my, x0 + PAD, y, 44, 15)) {
+        int y = barY();
+        if (in(mx, my, x0 + PAD, y, backW(), CTRL)) {
             minecraft.setScreen(editing != null ? null : new BrowserScreen());
             return true;
         }
-        if (editing != null && in(mx, my, applyX(), y, 50, 15)) {
+        if (editing != null && in(mx, my, applyX(), y, 50, CTRL)) {
             if (missingKinds() > 0) {
                 showTab("MATERIALS");
                 return true;
@@ -694,7 +731,7 @@ public class EditorScreen extends Screen {
         }
         if (entry.members().size() > 1) {
             int[] t = tierBox();
-            int next = in(mx, my, t[0], y, 15, 15) ? tier - 1 : in(mx, my, t[2], y, 15, 15) ? tier + 1 : tier;
+            int next = in(mx, my, t[0], y, CTRL, CTRL) ? tier - 1 : in(mx, my, t[2], y, CTRL, CTRL) ? tier + 1 : tier;
             if (next != tier) {
                 tier = Math.max(0, Math.min(entry.members().size() - 1, next));
                 overrides.clear();
@@ -702,11 +739,11 @@ public class EditorScreen extends Screen {
                 return true;
             }
         }
-        int bx = viewX() + 4, by = bodyTop() + 4;
-        if (in(mx, my, bx, by, 15, 15)) { view.yaw -= 45; return true; }
-        if (in(mx, my, bx + 18, by, 15, 15)) { view.yaw += 45; return true; }
-        if (in(mx, my, bx + 36, by, 38, 15)) { view.reset(); return true; }
-        if (in(mx, my, bx + 76, by, 34, 15)) { view.spin = !view.spin; return true; }
+        int[] tb = toolbar();
+        if (in(mx, my, tb[0], tb[4], CTRL, CTRL)) { view.yaw -= 45; return true; }
+        if (in(mx, my, tb[1], tb[4], CTRL, CTRL)) { view.yaw += 45; return true; }
+        if (in(mx, my, tb[2], tb[4], tb[5], CTRL)) { view.reset(); return true; }
+        if (in(mx, my, tb[3], tb[4], tb[6], CTRL)) { view.spin = !view.spin; return true; }
         if (in(mx, my, sliderX() - 2, sliderTop() - 4, 14, sliderBottom() - sliderTop() + 8)) {
             draggingSlider = true;
             setLayer(my);
@@ -721,7 +758,7 @@ public class EditorScreen extends Screen {
         }
         int x = sideX();
         for (TabCell c : tabCells())
-            if (in(mx, my, c.x(), bodyTop() + 4, c.w() - 2, TAB)) {
+            if (in(mx, my, c.x(), bodyTop() + INSET, c.w() - GAP, CTRL)) {
                 tab = c.tab();
                 sideScroll = 0;
                 lines = buildLines();
@@ -730,7 +767,7 @@ public class EditorScreen extends Screen {
         if (in(mx, my, x, contentTop(), sideW, bodyBottom() - contentTop())) {
             int ly = contentTop() - sideScroll;
             for (Line l : List.copyOf(lines)) {
-                if (my >= ly && my < ly + l.height()) return l.click(x + 6, ly, sideW - 12, mx, my, button);
+                if (my >= ly && my < ly + l.height()) return l.click(x + PAD, ly, sideW - 2 * PAD, mx, my, button);
                 ly += l.height();
             }
         }

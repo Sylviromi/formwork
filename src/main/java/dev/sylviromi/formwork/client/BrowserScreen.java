@@ -24,7 +24,8 @@ import static dev.sylviromi.formwork.client.Ui.*;
 
 /** Picks a multiblock: search, mod categories on the left, cards with 3D thumbnails. A click opens the editor. */
 public class BrowserScreen extends Screen {
-    private static final int PAD = 6, CAT_W = 112, CARD_W = 112, CARD_H = 92, GAP = 6, THUMB_H = 62, MAX_THUMB_BLOCKS = 5000;
+    /** Cards: a thumbnail, then the name and the category line, INSET from the card's edges, PAD apart. */
+    private static final int CAT_W = 112, CARD_W = 112, THUMB_H = 62, LINE = 9, CARD_H = INSET + THUMB_H + INSET + LINE + GAP + LINE + INSET, MAX_THUMB_BLOCKS = 5000;
     private static final String ALL = "";
 
     /** What a card shows; blocks: the first member's default blocks (thumbnail). */
@@ -93,11 +94,12 @@ public class BrowserScreen extends Screen {
 
     @Override
     protected void init() {
-        x0 = 8;
-        y0 = 8;
-        w = width - 16;
-        h = height - 16;
-        search = new EditBox(font, x0 + PAD, y0 + PAD, w - 2 * PAD, 16, Component.translatable("gui.recipebook.search_hint"));
+        x0 = MARGIN;
+        y0 = MARGIN;
+        w = width - 2 * MARGIN;
+        h = height - 2 * MARGIN;
+        search = new EditBox(font, x0 + PAD + PAD, textY(y0 + PAD, CTRL), w - 4 * PAD, 9, Component.translatable("gui.recipebook.search_hint"));
+        search.setBordered(false);
         search.setHint(Component.translatable("gui.recipebook.search_hint").withStyle(s -> s.withColor(DIM)));
         search.setValue(query);
         search.setResponder(q -> {
@@ -127,12 +129,13 @@ public class BrowserScreen extends Screen {
 
     // ---------- geometry ----------
 
-    private int top() { return y0 + PAD + 22; }
+    private int top() { return y0 + PAD + CTRL + PAD; }
     private int bottom() { return y0 + h - PAD; }
     private int gridX() { return x0 + PAD + CAT_W + PAD; }
     private int gridW() { return x0 + w - PAD - gridX(); }
-    private int cols() { return Math.max(1, (gridW() + GAP) / (CARD_W + GAP)); }
-    private int cardW() { return (gridW() - (cols() - 1) * GAP) / cols(); }
+    private int cols() { return Math.max(1, (gridW() + PAD) / (CARD_W + PAD)); }
+    private int cardW() { return (gridW() - (cols() - 1) * PAD) / cols(); }
+    private static final int CAT_STEP = CTRL + GAP;
 
     // ---------- rendering ----------
 
@@ -141,6 +144,7 @@ public class BrowserScreen extends Screen {
         renderBackground(g);
         g.fill(x0, y0, x0 + w, y0 + h, BG);
         g.renderOutline(x0, y0, w, h, BORDER);
+        field(g, x0 + PAD, y0 + PAD, w - 2 * PAD, search.isFocused());
         // categories scroll on their own when they don't fit
         g.enableScissor(x0 + PAD, top(), x0 + PAD + CAT_W, bottom());
         List<String> cats = catList();
@@ -148,9 +152,9 @@ public class BrowserScreen extends Screen {
             String c = cats.get(i);
             String name = c.equals(ALL) ? Component.translatable("gui.socialInteractions.tab_all").getString() : c;
             String count = " (" + (c.equals(ALL) ? infos().size() : categories.get(c)) + ")";
-            String label = font.plainSubstrByWidth(name, CAT_W - 8 - font.width(count)) + count;
+            String label = font.plainSubstrByWidth(name, CAT_W - 2 * PAD - font.width(count)) + count;
             boolean over = my >= top() && my < bottom();
-            button(g, font, x0 + PAD, top() + i * 18 - catScroll, CAT_W, 16, Component.literal(label), category.equals(c), mx, over ? my : -1000);
+            button(g, font, x0 + PAD, top() + i * CAT_STEP - catScroll, CAT_W, CTRL, Component.literal(label), category.equals(c), mx, over ? my : -1000);
         }
         g.disableScissor();
         renderCards(g, mx, my);
@@ -165,13 +169,14 @@ public class BrowserScreen extends Screen {
         g.enableScissor(gridX(), top, gridX() + gridW(), bottom);
         for (int i = 0; i < shown.size(); i++) {
             Info info = shown.get(i);
-            int x = gridX() + (i % cols) * (cw + GAP), y = top + (i / cols) * (CARD_H + GAP) - scroll;
+            int x = gridX() + (i % cols) * (cw + PAD), y = top + (i / cols) * (CARD_H + PAD) - scroll;
             if (y + CARD_H < top || y > bottom) continue;
             boolean over = in(mx, my, x, y, cw, CARD_H) && my >= top && my < bottom;
             boolean selected = info.entry().members().contains(current);
             g.fill(x, y, x + cw, y + CARD_H, over ? 0xF01C2430 : PANEL);
             g.renderOutline(x, y, cw, CARD_H, selected ? ACCENT : over ? 0xFF4A5868 : BORDER);
-            g.fill(x + 3, y + 3, x + cw - 3, y + 3 + THUMB_H, VIEW);
+            int tx = x + INSET, ty = y + INSET, tw = cw - 2 * INSET, line1 = ty + THUMB_H + INSET, line2 = line1 + LINE + GAP;
+            g.fill(tx, ty, tx + tw, ty + THUMB_H, VIEW);
             String key = info.entry().key();
             if (over) hover = key;
             StructureMesh mesh = thumbs.get(key);
@@ -182,16 +187,16 @@ public class BrowserScreen extends Screen {
                 built = true;
             }
             if (mesh != null) {
-                g.enableScissor(x + 3, y + 3, x + cw - 3, y + 3 + THUMB_H); // intersects with the grid's scissor
-                (over ? spinning : still).draw(g, mesh, x + 3, y + 3, cw - 6, THUMB_H, info.bounds());
+                g.enableScissor(tx, ty, tx + tw, ty + THUMB_H); // intersects with the grid's scissor
+                (over ? spinning : still).draw(g, mesh, tx, ty, tw, THUMB_H, info.bounds());
                 g.disableScissor();
             } else if (!info.icon().isEmpty()) {
-                g.renderItem(info.icon(), x + cw / 2 - 8, y + 3 + THUMB_H / 2 - 8);
+                g.renderItem(info.icon(), tx + tw / 2 - 8, ty + THUMB_H / 2 - 8);
             }
-            g.drawString(font, font.plainSubstrByWidth(info.name(), cw - 8), x + 4, y + THUMB_H + 7, selected ? ACCENT : TEXT, false);
+            g.drawString(font, font.plainSubstrByWidth(info.name(), tw), tx, line1, selected ? ACCENT : TEXT, false);
             int sw = font.width(info.subtitle());
-            g.drawString(font, font.plainSubstrByWidth(info.category(), cw - 12 - sw), x + 4, y + THUMB_H + 18, DIM, false);
-            g.drawString(font, info.subtitle(), x + cw - 4 - sw, y + THUMB_H + 18, DIM, false);
+            g.drawString(font, font.plainSubstrByWidth(info.category(), tw - sw - PAD), tx, line2, DIM, false);
+            g.drawString(font, info.subtitle(), tx + tw - sw, line2, DIM, false);
         }
         g.disableScissor();
         if (!hover.equals(hovered)) {
@@ -209,10 +214,10 @@ public class BrowserScreen extends Screen {
         List<String> cats = catList();
         if (my >= top() && my < bottom())
             for (int i = 0; i < cats.size(); i++)
-                if (in(mx, my, x0 + PAD, top() + i * 18 - catScroll, CAT_W, 16)) return pick(cats.get(i));
+                if (in(mx, my, x0 + PAD, top() + i * CAT_STEP - catScroll, CAT_W, CTRL)) return pick(cats.get(i));
         int cw = cardW(), cols = cols();
         if (in(mx, my, gridX(), top(), gridW(), bottom() - top())) {
-            int col = (int) ((mx - gridX()) / (cw + GAP)), row = (int) ((my - top() + scroll) / (CARD_H + GAP));
+            int col = (int) ((mx - gridX()) / (cw + PAD)), row = (int) ((my - top() + scroll) / (CARD_H + PAD));
             int i = row * cols + col;
             if (col < cols && i >= 0 && i < shown.size()) {
                 minecraft.setScreen(new EditorScreen(shown.get(i).entry()));
@@ -231,13 +236,13 @@ public class BrowserScreen extends Screen {
 
     private int maxScroll() {
         int rows = (shown.size() + cols() - 1) / cols();
-        return Math.max(0, rows * (CARD_H + GAP) - (bottom() - top()));
+        return Math.max(0, rows * (CARD_H + PAD) - PAD - (bottom() - top()));
     }
 
     @Override
     public boolean mouseScrolled(double mx, double my, double delta) {
-        if (mx < gridX()) catScroll = (int) Math.max(0, Math.min(catList().size() * 18 - (bottom() - top()), catScroll - delta * 18 * 2));
-        else scroll = (int) Math.max(0, Math.min(maxScroll(), scroll - delta * (CARD_H + GAP) / 2));
+        if (mx < gridX()) catScroll = (int) Math.max(0, Math.min(catList().size() * CAT_STEP - GAP - (bottom() - top()), catScroll - delta * CAT_STEP * 2));
+        else scroll = (int) Math.max(0, Math.min(maxScroll(), scroll - delta * (CARD_H + PAD) / 2));
         return true;
     }
 
