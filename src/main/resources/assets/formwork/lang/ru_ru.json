@@ -1,5 +1,5 @@
 {
-  "item.formwork.placer": "Formwork",
+  "item.formwork.placer": "Жезл Formwork",
   "formwork.tooltip.selected": "Выбрано: %s",
   "formwork.tooltip.linked": "Привязан к МЭ-сети",
   "formwork.tooltip.unlinked": "Не привязан (положите в %s)",

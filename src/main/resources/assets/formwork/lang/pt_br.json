@@ -1,5 +1,5 @@
 {
-  "item.formwork.placer": "Formwork",
+  "item.formwork.placer": "Varinha Formwork",
   "formwork.tooltip.selected": "Selecionado: %s",
   "formwork.tooltip.linked": "Vinculado a uma rede ME",
   "formwork.tooltip.unlinked": "Não vinculado (coloque-o em um %s)",

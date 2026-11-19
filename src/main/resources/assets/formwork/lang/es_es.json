@@ -1,5 +1,5 @@
 {
-  "item.formwork.placer": "Formwork",
+  "item.formwork.placer": "Varita Formwork",
   "formwork.tooltip.selected": "Seleccionado: %s",
   "formwork.tooltip.linked": "Vinculado a una red ME",
   "formwork.tooltip.unlinked": "Sin vincular (ponlo en un %s)",

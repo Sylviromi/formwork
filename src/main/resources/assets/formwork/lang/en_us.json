@@ -1,5 +1,5 @@
 {
-  "item.formwork.placer": "Formwork",
+  "item.formwork.placer": "Formwork Wand",
   "formwork.tooltip.selected": "Selected: %s",
   "formwork.tooltip.linked": "Linked to an ME network",
   "formwork.tooltip.unlinked": "Not linked (put it in a %s)",

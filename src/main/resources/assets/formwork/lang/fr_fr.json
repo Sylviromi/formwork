@@ -1,5 +1,5 @@
 {
-  "item.formwork.placer": "Formwork",
+  "item.formwork.placer": "Baguette Formwork",
   "formwork.tooltip.selected": "Sélection : %s",
   "formwork.tooltip.linked": "Lié à un réseau ME",
   "formwork.tooltip.unlinked": "Non lié (placez-le dans un %s)",

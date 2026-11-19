@@ -1,5 +1,5 @@
 {
-  "item.formwork.placer": "Formwork",
+  "item.formwork.placer": "Różdżka Formwork",
   "formwork.tooltip.selected": "Wybrano: %s",
   "formwork.tooltip.linked": "Połączono z siecią ME",
   "formwork.tooltip.unlinked": "Niepołączono (włóż do: %s)",

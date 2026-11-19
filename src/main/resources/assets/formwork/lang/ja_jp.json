@@ -1,5 +1,5 @@
 {
-  "item.formwork.placer": "Formwork",
+  "item.formwork.placer": "Formworkの杖",
   "formwork.tooltip.selected": "選択中: %s",
   "formwork.tooltip.linked": "MEネットワークに接続済み",
   "formwork.tooltip.unlinked": "未接続（%sに入れてください）",

@@ -1,5 +1,5 @@
 {
-  "item.formwork.placer": "Formwork",
+  "item.formwork.placer": "Formwork魔杖",
   "formwork.tooltip.selected": "已选择：%s",
   "formwork.tooltip.linked": "已连接到ME网络",
   "formwork.tooltip.unlinked": "未连接（放入%s）",

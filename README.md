@@ -25,6 +25,8 @@ English, German, French, Spanish, Italian, Brazilian Portuguese, Polish, Russian
 
 ## Crafting
 
+The Formwork Wand:
+
 ```
  E      E: ender pearl
 IRI     I: iron ingot

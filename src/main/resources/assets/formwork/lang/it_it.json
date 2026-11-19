@@ -1,5 +1,5 @@
 {
-  "item.formwork.placer": "Formwork",
+  "item.formwork.placer": "Bacchetta Formwork",
   "formwork.tooltip.selected": "Selezionato: %s",
   "formwork.tooltip.linked": "Collegato a una rete ME",
   "formwork.tooltip.unlinked": "Non collegato (mettilo in un %s)",
