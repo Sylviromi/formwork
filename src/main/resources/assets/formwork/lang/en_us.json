@@ -2,7 +2,7 @@
   "item.formwork.placer": "Formwork",
   "formwork.tooltip.selected": "Selected: %s",
   "formwork.tooltip.linked": "Linked to an ME network",
-  "formwork.tooltip.unlinked": "Not linked (put it in a Wireless Access Point)",
+  "formwork.tooltip.unlinked": "Not linked (put it in a %s)",
   "formwork.tooltip.usage": "Sneak + use: choose a multiblock. Use: place it.",
   "formwork.msg.nothing_selected": "Nothing selected. Sneak + use to choose a multiblock.",
   "formwork.msg.invalid_selection": "The selected multiblock is not available on this server.",
@@ -83,5 +83,10 @@
   "formwork.msg.structure_craft.running": "The ME network is already crafting a structure's materials for you",
   "formwork.msg.structure_craft.no_pattern": "The ME network did not take the crafting request. Is it powered?",
   "formwork.msg.structure_craft.cancelled": "Crafting the structure's materials was cancelled",
-  "formwork.msg.structure_craft.done": "The structure's materials are ready in the ME network"
+  "formwork.msg.structure_craft.done": "The structure's materials are ready in the ME network",
+  "formwork.gui.in_inventory": "Inventory: %s",
+  "formwork.gui.in_me": "ME: %s",
+  "formwork.command.not_in_set": "Block is in no variant set: %s",
+  "formwork.command.unknown": "Unknown entry or invalid variants: %s",
+  "formwork.command.placed": "Placed %s blocks of %s"
 }

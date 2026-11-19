@@ -245,7 +245,9 @@ public class PlacerItem extends Item {
         Selection sel = selection(stack);
         if (!sel.isEmpty()) tooltip.add(Component.translatable("formwork.tooltip.selected", displayName(sel.entry())).withStyle(ChatFormatting.AQUA));
         boolean linked = stack.getTag() != null && stack.getTag().contains(AE_LINK);
-        tooltip.add(Component.translatable(linked ? "formwork.tooltip.linked" : "formwork.tooltip.unlinked").withStyle(ChatFormatting.GRAY));
+        if (dev.sylviromi.formwork.Formwork.AE2)
+            tooltip.add((linked ? Component.translatable("formwork.tooltip.linked")
+                    : Component.translatable("formwork.tooltip.unlinked", Component.translatable("block.ae2.wireless_access_point"))).withStyle(ChatFormatting.GRAY));
         if (anchor(stack) != null) tooltip.add(Component.translatable("formwork.tooltip.anchored").withStyle(ChatFormatting.YELLOW));
         tooltip.add(Component.translatable("formwork.tooltip.usage").withStyle(ChatFormatting.DARK_GRAY));
         tooltip.add(Component.translatable("formwork.tooltip.placed").withStyle(ChatFormatting.DARK_GRAY));

@@ -50,7 +50,7 @@ public final class PlaceCommand {
             VariantSet set = plain == null ? null : Resolver.slots(Catalog.server, entry, plain).values().stream()
                     .filter(s -> s.blocks().contains(block)).findFirst().orElse(null);
             if (set == null) {
-                c.getSource().sendFailure(Component.literal("Block is in no variant set: " + block));
+                c.getSource().sendFailure(Component.translatable("formwork.command.not_in_set", block));
                 return 0;
             }
             counts.computeIfAbsent(set.id(), k -> new LinkedHashMap<>()).put(block, Integer.parseInt(tok.substring(eq + 1)));
@@ -58,14 +58,14 @@ public final class PlaceCommand {
         Selection sel = new Selection(entry, params.stream().mapToInt(Integer::intValue).toArray(), counts);
         Map<BlockPos, BlockSpec> specs = Resolver.specs(Catalog.server, sel);
         if (specs == null) {
-            c.getSource().sendFailure(Component.literal("Unknown entry or invalid variants: " + entry));
+            c.getSource().sendFailure(Component.translatable("formwork.command.unknown", entry));
             return 0;
         }
         var blocks = Resolver.world(specs, pos, Direction.NORTH);
         var level = c.getSource().getLevel();
         Placer.put(level, blocks, null);
         Placements.of(level).add(level, Placements.record(blocks, sel.save(), pos, Direction.NORTH, null));
-        c.getSource().sendSuccess(() -> Component.literal("Placed " + blocks.size() + " blocks of " + entry), true);
+        c.getSource().sendSuccess(() -> Component.translatable("formwork.command.placed", blocks.size(), entry), true);
         return blocks.size();
     }
 }

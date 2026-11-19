@@ -386,8 +386,8 @@ public class EditorScreen extends Screen {
                             g.drawString(font, font.plainSubstrByWidth(stack.getHoverName().getString(), w - 24 - font.width(count)), x + 18, y + 5, TEXT, false);
                             g.drawString(font, count, x + w - font.width(count), y + 5, color, false);
                             if (in(mx, my, x, y, w, 18))
-                                setTooltipForNextRenderPass(Component.literal(stack.getHoverName().getString() + "\nInventory: " + r.inventory()
-                                        + (r.me() >= 0 ? "\nME: " + r.me() : "")
+                                setTooltipForNextRenderPass(Component.literal(stack.getHoverName().getString() + "\n" + Component.translatable("formwork.gui.in_inventory", r.inventory()).getString()
+                                        + (r.me() >= 0 ? "\n" + Component.translatable("formwork.gui.in_me", r.me()).getString() : "")
                                         + (canCraft ? "\n" + Component.translatable("formwork.gui.click_craft").getString() : "")));
                         }
 
