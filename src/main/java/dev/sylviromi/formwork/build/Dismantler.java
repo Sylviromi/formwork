@@ -27,11 +27,14 @@ public final class Dismantler {
     private Dismantler() {
     }
 
-    /** The placed blocks of a record, or null when its entry is no longer in the catalog. */
+    /** The placed blocks of a record (without its skipped spots), or null when its entry is no longer in the catalog. */
     @Nullable
     public static Map<BlockPos, Resolver.Placed> blocks(Catalog catalog, Placements.Rec rec) {
         Map<BlockPos, BlockSpec> specs = Resolver.specs(catalog, Selection.load(rec.selection()));
-        return specs == null ? null : Resolver.world(specs, rec.target(), rec.facing());
+        if (specs == null) return null;
+        Map<BlockPos, Resolver.Placed> out = Resolver.world(specs, rec.target(), rec.facing());
+        out.keySet().removeAll(rec.skipped());
+        return out;
     }
 
     public static void dismantle(ServerPlayer player, ItemStack tool, Placements.Rec rec) {

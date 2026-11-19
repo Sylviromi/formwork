@@ -17,8 +17,10 @@ import net.minecraftforge.event.ForgeEventFactory;
 
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /** Server side placement. Everything is checked before anything is taken or placed. */
@@ -72,16 +74,17 @@ public final class Placer {
             }
         }
         put(level, blocks, player);
-        Placements.of(level).add(level, Placements.record(all, sel.save(), target, facing, player.getUUID()));
+        Set<BlockPos> skipped = new HashSet<>(all.keySet());
+        skipped.removeAll(blocks.keySet());
+        Placements.of(level).add(level, Placements.record(all, sel.save(), target, facing, player.getUUID(), skipped));
         // placed: release the anchor (and its nudges) so the next one follows the crosshair again
         if (PlacerItem.anchor(tool) != null) {
             tool.getTag().remove(PlacerItem.ANCHOR);
             tool.getTag().remove(PlacerItem.ANCHOR_FACING);
             tool.getTag().remove(PlacerItem.OFFSET);
         }
-        int skipped = all.size() - blocks.size();
-        player.displayClientMessage(skipped == 0 ? Component.translatable("formwork.msg.placed", blocks.size())
-                : Component.translatable("formwork.msg.placed_skipped", blocks.size(), skipped), true);
+        player.displayClientMessage(skipped.isEmpty() ? Component.translatable("formwork.msg.placed", blocks.size())
+                : Component.translatable("formwork.msg.placed_skipped", blocks.size(), skipped.size()), true);
     }
 
     /** Puts the blocks in the world, bottom-up, and loads block entity data. Player may be null (commands). */

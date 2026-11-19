@@ -7,13 +7,14 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class PlacementsTest {
     private static Placements.Rec rec(int x0, int x1) {
-        return new Placements.Rec(UUID.randomUUID(), new CompoundTag(), BlockPos.ZERO, Direction.NORTH, new BoundingBox(x0, 0, 0, x1, 4, 4), null);
+        return new Placements.Rec(UUID.randomUUID(), new CompoundTag(), BlockPos.ZERO, Direction.NORTH, new BoundingBox(x0, 0, 0, x1, 4, 4), null, Set.of(new BlockPos(x0, 1, 1)));
     }
 
     @Test
