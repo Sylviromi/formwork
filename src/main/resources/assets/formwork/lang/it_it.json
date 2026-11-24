@@ -90,7 +90,6 @@
   "formwork.command.unknown": "Voce sconosciuta o varianti non valide: %s",
   "formwork.command.placed": "%s blocchi di %s piazzati",
   "formwork.gui.mirror_tip": "Specchia sinistra e destra (M)",
-  "formwork.gui.animate_tip": "Placement and dismantle animations",
   "formwork.gui.favourite": "Preferito",
   "formwork.jei.hint": "Clic: ferma o ruota",
   "formwork.jei.materials": "%s materiali"

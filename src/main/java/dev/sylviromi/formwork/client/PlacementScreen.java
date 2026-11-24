@@ -106,8 +106,6 @@ public class PlacementScreen extends Screen {
         icon(right - B, y0 + PAD, B, Icon.ANCHOR, Component.translatable("formwork.gui.anchor_tip"), () -> PlacerItem.anchor(tool()) != null,
                 () -> ClientHooks.toggleAnchor(tool()), ANCHOR);
         text(right - 2 * B - GAP, y0 + PAD, B, "M", Component.translatable("formwork.gui.mirror_tip"), () -> PlacerItem.mirror(tool()), this::mirror, NORMAL);
-        text(right - 3 * B - 2 * GAP, y0 + PAD, B, "A", Component.translatable("formwork.gui.animate_tip"), () -> PlacerItem.animate(tool()),
-                () -> edit(t -> t.putBoolean(PlacerItem.NO_ANIMATION, !t.getBoolean(PlacerItem.NO_ANIMATION))), NORMAL);
         // compass, N up like a map: sets which way the structure faces
         for (Direction d : new Direction[]{Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST})
             text(x + (1 + d.getStepX()) * step, gy + (1 + d.getStepZ()) * step, B, d.getName().substring(0, 1).toUpperCase(java.util.Locale.ROOT),

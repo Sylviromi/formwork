@@ -90,7 +90,6 @@
   "formwork.command.unknown": "不明な項目か無効なバリエーション: %s",
   "formwork.command.placed": "%s 個のブロックを設置しました（%s）",
   "formwork.gui.mirror_tip": "左右反転 (M)",
-  "formwork.gui.animate_tip": "Placement and dismantle animations",
   "formwork.gui.favourite": "お気に入り",
   "formwork.jei.hint": "クリックで停止/回転",
   "formwork.jei.materials": "素材 %s 種"

@@ -90,7 +90,6 @@
   "formwork.command.unknown": "Неизвестная запись или неверные варианты: %s",
   "formwork.command.placed": "Поставлено блоков: %s (%s)",
   "formwork.gui.mirror_tip": "Отразить слева направо (M)",
-  "formwork.gui.animate_tip": "Placement and dismantle animations",
   "formwork.gui.favourite": "Избранное",
   "formwork.jei.hint": "Клик: остановить или вращать",
   "formwork.jei.materials": "Материалов: %s"

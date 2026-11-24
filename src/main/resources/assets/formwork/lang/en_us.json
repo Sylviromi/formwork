@@ -90,7 +90,6 @@
   "formwork.command.unknown": "Unknown entry or invalid variants: %s",
   "formwork.command.placed": "Placed %s blocks of %s",
   "formwork.gui.mirror_tip": "Mirror left to right (M)",
-  "formwork.gui.animate_tip": "Placement and dismantle animations",
   "formwork.gui.favourite": "Favourite",
   "formwork.jei.hint": "Click to freeze or turn",
   "formwork.jei.materials": "%s materials"

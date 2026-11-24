@@ -90,7 +90,6 @@
   "formwork.command.unknown": "Entrée inconnue ou variantes invalides : %s",
   "formwork.command.placed": "%s blocs de %s posés",
   "formwork.gui.mirror_tip": "Inverser gauche et droite (M)",
-  "formwork.gui.animate_tip": "Placement and dismantle animations",
   "formwork.gui.favourite": "Favori",
   "formwork.jei.hint": "Clic : figer ou tourner",
   "formwork.jei.materials": "%s matériaux"

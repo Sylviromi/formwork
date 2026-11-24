@@ -90,7 +90,6 @@
   "formwork.command.unknown": "Entrada desconocida o variantes no válidas: %s",
   "formwork.command.placed": "%s bloques de %s colocados",
   "formwork.gui.mirror_tip": "Reflejar izquierda y derecha (M)",
-  "formwork.gui.animate_tip": "Placement and dismantle animations",
   "formwork.gui.favourite": "Favorito",
   "formwork.jei.hint": "Clic: detener o girar",
   "formwork.jei.materials": "%s materiales"

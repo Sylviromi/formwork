@@ -82,8 +82,7 @@ public final class Placer {
         skipped.removeAll(blocks.keySet());
         Placements.Rec rec = Placements.record(all, sel.save(), target, facing, mirror, player.getUUID(), skipped);
         Placements.of(level).add(level, rec);
-        if (PlacerItem.animate(tool)) putAnimated(level, blocks, player, () -> Placements.of(level).all().contains(rec));
-        else put(level, blocks, player);
+        putAnimated(level, blocks, player, () -> Placements.of(level).all().contains(rec));
         // placed: release the anchor (and its nudges) so the next one follows the crosshair again
         if (PlacerItem.anchor(tool) != null) {
             tool.getTag().remove(PlacerItem.ANCHOR);
@@ -103,7 +102,7 @@ public final class Placer {
     public static void putAnimated(ServerLevel level, Map<BlockPos, Resolver.Placed> blocks, ServerPlayer player, BooleanSupplier alive) {
         UUID id = player.getUUID();
         // the sweep is only drawn; every block lands together when it ends, so a multiblock sees the finished structure once
-        Animator.run(new ArrayList<>(blocks.keySet()), true, Net.GROW_TICKS, true, pos -> {
+        Animator.run(new ArrayList<>(blocks.keySet()), true, Net.GROW_TICKS, pos -> {
         }, batch -> {
             var open = batch.stream().filter(pos -> level.getBlockState(pos).canBeReplaced()).toList();
             if (open.isEmpty()) return;

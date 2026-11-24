@@ -1,6 +1,5 @@
 package dev.sylviromi.formwork.build;
 
-import dev.sylviromi.formwork.item.PlacerItem;
 import dev.sylviromi.formwork.net.Net;
 import dev.sylviromi.formwork.Formwork;
 import dev.sylviromi.formwork.ae2.AeLink;
@@ -63,7 +62,7 @@ public final class Dismantler {
         List<ItemStack> drops = new ArrayList<>();
         int[] removed = new int[1];
         UUID id = player.getUUID();
-        Animator.run(take, false, 0, PlacerItem.animate(tool), pos -> {
+        Animator.run(take, false, 0, pos -> {
             BlockState state = level.getBlockState(pos);
             if (state.getBlock() != placed.get(pos).state().getBlock()) return;
             ServerPlayer who = level.getServer().getPlayerList().getPlayer(id);

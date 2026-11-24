@@ -71,9 +71,8 @@ public final class Animator {
      * a client-side grow animation) can play before the block changes. The job is dropped without done when alive turns
      * false; done runs after the last position.
      */
-    public static void run(List<BlockPos> order, boolean bottomUp, int lag, boolean animate, Consumer<BlockPos> each, Consumer<List<BlockPos>> effect, BooleanSupplier alive, Runnable done) {
-        if (order.isEmpty() || !animate) {
-            order.forEach(each);
+    public static void run(List<BlockPos> order, boolean bottomUp, int lag, Consumer<BlockPos> each, Consumer<List<BlockPos>> effect, BooleanSupplier alive, Runnable done) {
+        if (order.isEmpty()) {
             done.run();
             return;
         }
