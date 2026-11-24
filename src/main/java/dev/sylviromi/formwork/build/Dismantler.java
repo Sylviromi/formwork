@@ -61,6 +61,7 @@ public final class Dismantler {
         if (kept == 0) placements.remove(level, rec.id());
         List<ItemStack> drops = new ArrayList<>();
         int[] removed = new int[1];
+        java.util.Set<BlockPos> wholeSet = new java.util.HashSet<>(take);
         UUID id = player.getUUID();
         Animator.run(take, false, 0, pos -> {
             BlockState state = level.getBlockState(pos);
@@ -70,7 +71,7 @@ public final class Dismantler {
             take(who, level, pos, state, drops);
             removed[0]++;
         }, batch -> {
-            Net.pop(level, false, batch, level::getBlockState);
+            Net.pop(level, false, batch, wholeSet, level::getBlockState);
         }, () -> true, () -> {
             ServerPlayer who = level.getServer().getPlayerList().getPlayer(id);
             if (who == null) {
