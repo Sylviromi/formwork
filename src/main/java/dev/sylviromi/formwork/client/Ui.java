@@ -139,6 +139,9 @@ final class Ui {
             buffers.endBatch(RenderType.debugFilledBox());
         }
 
+        /** Isolate view: when set, solo is drawn as it is and rest as a faint ghost, instead of the whole mesh. */
+        @Nullable StructureMesh solo, rest;
+
         /** GUI-space transform of the last draw, for picking. */
         private Matrix4f lastPose;
 
@@ -185,7 +188,11 @@ final class Ui {
             ps.mulPose(Axis.YP.rotationDegrees(yaw));
             ps.translate(-b.cx(), -b.cy(), -b.cz());
             RenderSystem.enableDepthTest();
-            mesh.draw(new Matrix4f(RenderSystem.getModelViewMatrix()).mul(ps.last().pose()), RenderSystem.getProjectionMatrix());
+            Matrix4f mv = new Matrix4f(RenderSystem.getModelViewMatrix()).mul(ps.last().pose());
+            if (solo != null && rest != null) {
+                solo.draw(mv, RenderSystem.getProjectionMatrix());
+                rest.drawGhost(mv, RenderSystem.getProjectionMatrix(), 0.65f, 0.75f, 0.85f, 0.2f);
+            } else mesh.draw(mv, RenderSystem.getProjectionMatrix());
             lastPose = new Matrix4f(ps.last().pose());
             mark(g, ps, selected, 0.31f, 0.82f, 1f, 0.55f);
             if (hover != null && !hover.equals(selected)) mark(g, ps, hover, 1f, 0.82f, 0.4f, 0.4f);
