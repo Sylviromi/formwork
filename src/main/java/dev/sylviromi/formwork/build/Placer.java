@@ -108,7 +108,7 @@ public final class Placer {
             if (open.isEmpty()) return;
             var sound = blocks.get(open.get(0)).state().getSoundType().getPlaceSound();
             level.playSound(null, open.get(0), sound, SoundSource.BLOCKS, 0.6f, 1f);
-            Net.pop(level, true, open, blocks.keySet(), pos -> blocks.get(pos).state());
+            Net.pop(level, true, open, pos -> blocks.get(pos).state());
         }, alive, () -> blocks.keySet().forEach(pos -> {
             if (level.getBlockState(pos).canBeReplaced()) putOne(level, pos, blocks.get(pos), level.getServer().getPlayerList().getPlayer(id));
         }));

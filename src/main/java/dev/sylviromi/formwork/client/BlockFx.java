@@ -4,6 +4,14 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import dev.sylviromi.formwork.Formwork;
 import dev.sylviromi.formwork.net.Net;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.block.BlockRenderDispatcher;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.core.Direction;
+import net.minecraft.util.RandomSource;
+import net.minecraftforge.client.model.data.ModelData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
@@ -40,6 +48,29 @@ public final class BlockFx {
         int duration() {
             return in ? Net.GROW_TICKS : SHRINK_TICKS;
         }
+    }
+
+    private record Baked(RenderType type, List<BakedQuad> quads) {
+    }
+
+    /** DOWN, UP, NORTH, SOUTH, WEST, EAST: vanilla's face brightness. */
+    private static final float[] SHADE = {0.5f, 1f, 0.8f, 0.8f, 0.6f, 0.6f};
+    /** The model quads of each state, read once: the animation only transforms them, instead of meshing every block every frame. */
+    private static final java.util.Map<BlockState, List<Baked>> BAKED = new java.util.HashMap<>();
+
+    private static List<Baked> baked(BlockRenderDispatcher dispatcher, BlockState state) {
+        return BAKED.computeIfAbsent(state, st -> {
+            var model = dispatcher.getBlockModel(st);
+            var rand = RandomSource.create(42);
+            List<Baked> out = new ArrayList<>();
+            for (RenderType type : model.getRenderTypes(st, rand, ModelData.EMPTY)) {
+                List<BakedQuad> quads = new ArrayList<>();
+                for (Direction d : new Direction[]{null, Direction.DOWN, Direction.UP, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST})
+                    quads.addAll(model.getQuads(st, d, rand, ModelData.EMPTY, type));
+                out.add(new Baked(type, quads));
+            }
+            return out;
+        });
     }
 
     private BlockFx() {
@@ -81,6 +112,7 @@ public final class BlockFx {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) {
             ACTIVE.clear();
+            BAKED.clear();
             HELD.forEach(h -> { if (h.mesh != null) h.mesh.close(); });
             HELD.clear();
             return;
@@ -104,14 +136,24 @@ public final class BlockFx {
             h.mesh.draw(ps.last().pose(), event.getProjectionMatrix());
             ps.popPose();
         }
+        BlockRenderDispatcher dispatcher = mc.getBlockRenderer();
         for (Fx f : ACTIVE) {
             float s = Math.max(0, scale(f.in(), (now - f.start()) / f.duration()));
+            if (s <= 0) continue;
+            int light = LevelRenderer.getLightColor(mc.level, f.pos());
             ps.pushPose();
             ps.translate(f.pos().getX() - cam.x + 0.5, f.pos().getY() - cam.y + 0.5, f.pos().getZ() - cam.z + 0.5);
             ps.scale(s, s, s);
             ps.translate(-0.5, -0.5, -0.5);
-            mc.getBlockRenderer().renderBatched(f.state(), f.pos(), mc.level, ps, buffers.getBuffer(net.minecraft.client.renderer.ItemBlockRenderTypes.getRenderType(f.state(), false)),
-                    false, mc.level.random, net.minecraftforge.client.model.data.ModelData.EMPTY, null);
+            for (Baked b : baked(dispatcher, f.state())) {
+                var vc = buffers.getBuffer(b.type());
+                for (BakedQuad q : b.quads()) {
+                    float shade = q.isShade() ? SHADE[q.getDirection().ordinal()] : 1f;
+                    int tint = q.isTinted() ? mc.getBlockColors().getColor(f.state(), mc.level, f.pos(), q.getTintIndex()) : -1;
+                    float r = tint == -1 ? 1 : (tint >> 16 & 255) / 255f, g = tint == -1 ? 1 : (tint >> 8 & 255) / 255f, bl = tint == -1 ? 1 : (tint & 255) / 255f;
+                    vc.putBulkData(ps.last(), q, r * shade, g * shade, bl * shade, light, OverlayTexture.NO_OVERLAY);
+                }
+            }
             ps.popPose();
         }
         buffers.endBatch();

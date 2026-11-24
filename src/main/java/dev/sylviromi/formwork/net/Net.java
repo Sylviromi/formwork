@@ -152,10 +152,7 @@ public final class Net {
     public static final int GROW_TICKS = 6;
 
     /** Tells the players near these blocks to animate them (the state is what the block is, or was). */
-    public static void pop(net.minecraft.server.level.ServerLevel level, boolean in, List<BlockPos> layer, java.util.Set<BlockPos> whole, java.util.function.Function<BlockPos, net.minecraft.world.level.block.state.BlockState> state) {
-        // only the skin of the structure animates (also the walls of hollow parts): every animated block is a model render per frame
-        List<BlockPos> pos = layer.stream().filter(p -> java.util.Arrays.stream(net.minecraft.core.Direction.values()).anyMatch(d -> !whole.contains(p.relative(d)))).toList();
-        if (pos.isEmpty()) return;
+    public static void pop(net.minecraft.server.level.ServerLevel level, boolean in, List<BlockPos> pos, java.util.function.Function<BlockPos, net.minecraft.world.level.block.state.BlockState> state) {
         BlockPos c = pos.get(0);
         CHANNEL.send(PacketDistributor.NEAR.with(() -> new PacketDistributor.TargetPoint(c.getX(), c.getY(), c.getZ(), 160, level.dimension())),
                 new Pop(in, List.copyOf(pos), pos.stream().map(p -> net.minecraft.world.level.block.Block.getId(state.apply(p))).toList()));
