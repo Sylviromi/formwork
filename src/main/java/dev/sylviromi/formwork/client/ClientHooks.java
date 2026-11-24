@@ -64,6 +64,12 @@ public final class ClientHooks {
         static void keys(RegisterKeyMappingsEvent e) {
             e.register(PLACEMENT);
         }
+
+        @SubscribeEvent
+        static void clientSetup(net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent e) {
+            net.minecraftforge.fml.ModLoadingContext.get().registerExtensionPoint(net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory.class,
+                    () -> new net.minecraftforge.client.ConfigScreenHandler.ConfigScreenFactory((mc, parent) -> new ConfigScreen(parent)));
+        }
     }
 
     /** After a hold-to-dismantle ends, the still-held use key must not go on to place something: ignored until released. */

@@ -10,6 +10,8 @@
   "formwork.msg.missing": "Missing %s (%s kinds in total)",
   "formwork.msg.me_changed": "The ME network changed while placing. Nothing was used, try again.",
   "formwork.msg.placed": "Placed %s blocks",
+  "formwork.config.title": "Formwork",
+  "formwork.config.animations": "Animations: %s",
   "formwork.gui.tier": "Tier %s / %s",
   "formwork.gui.blocks": "%s blocks",
   "formwork.gui.me.NO_AE2": "AE2 not installed",
