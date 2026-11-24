@@ -20,7 +20,8 @@ public final class Catalog {
     }
 
     private static final List<Generator> ALL_GENERATORS = List.of(new FissionReactor(), new IndustrialTurbine(),
-            new ThermoelectricBoiler(), new InductionMatrix(), new DynamicTank(), new ThermalEvaporation());
+            new ThermoelectricBoiler(), new InductionMatrix(), new DynamicTank(), new ThermalEvaporation(),
+            new NuclearCraft.MoltenSaltReactor(), new NuclearCraft.FissionReactor(), new NuclearCraft.HeatExchanger(), new NuclearCraft.Turbine());
     private static final Pattern TIER = Pattern.compile("^(.*?)_?tier_?(\\d+)(.*)$");
 
     /** One row in the list: a lone blueprint, a group of tiers, or a generator. Members are ids, lowest tier first. */

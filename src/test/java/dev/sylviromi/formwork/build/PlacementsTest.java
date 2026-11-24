@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PlacementsTest {
     private static Placements.Rec rec(int x0, int x1) {
-        return new Placements.Rec(UUID.randomUUID(), new CompoundTag(), BlockPos.ZERO, Direction.NORTH, new BoundingBox(x0, 0, 0, x1, 4, 4), null, Set.of(new BlockPos(x0, 1, 1)));
+        return new Placements.Rec(UUID.randomUUID(), new CompoundTag(), BlockPos.ZERO, Direction.NORTH, false, new BoundingBox(x0, 0, 0, x1, 4, 4), null, Set.of(new BlockPos(x0, 1, 1)));
     }
 
     @Test

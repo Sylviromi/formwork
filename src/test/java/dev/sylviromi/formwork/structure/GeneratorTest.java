@@ -104,4 +104,16 @@ class GeneratorTest {
         assertTrue(count(m, "mekanism:structural_glass") > 0);
         assertEquals("mekanism:thermal_evaporation_controller", new ThermalEvaporation().build(new int[]{5, 0}).get(new BlockPos(2, 1, 0)).id(), "without More Thermal Evaporation there is no tier param");
     }
+
+    @Test
+    void nuclearcraftLayoutsMatchTheStructuresItShips() {
+        var msr = new NuclearCraft.MoltenSaltReactor().build(new int[]{7, 7, 7, 1});
+        assertEquals(125, count(msr, "nuclearcraft:msr_fuel_cell"));
+        assertEquals(4, count(msr, "nuclearcraft:msr_port"));
+        var turbine = new NuclearCraft.Turbine().build(new int[]{5, 17, 2, 1});
+        assertEquals(360, count(turbine, "nuclearcraft:turbine_sic_sic_cmc_rotor_blade"));
+        assertEquals(3, count(turbine, "nuclearcraft:turbine_port"));
+        var exchanger = new NuclearCraft.HeatExchanger().build(new int[]{11, 11, 11});
+        assertEquals(378, count(exchanger, "nuclearcraft:heat_exchanger_radiator"));
+    }
 }

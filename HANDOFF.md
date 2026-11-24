@@ -29,7 +29,7 @@ Multi Builder Tool's source is at `/mnt/Projects/multi-block-placer`, only for r
   - `VariantSet`.
   - `Catalog`: entries, groups and generators. Has server and client instances.
   - `CatalogLoader`: reload listener.
-- `structure/gen/`: `Generator`, `Param`, `Box`, and the generators FissionReactor, IndustrialTurbine, ThermoelectricBoiler, InductionMatrix and DynamicTank.
+- `structure/gen/`: `Generator`, `Param`, `Box`, and the generators FissionReactor, IndustrialTurbine, ThermoelectricBoiler, InductionMatrix and DynamicTank, plus `NuclearCraft` (molten salt and solid fuel reactor, heat exchanger, turbine), whose sizes were checked against the structures the NuclearCraft jar ships.
 - `build/`:
   - `Resolver`: selection to specs to rotated world blocks.
   - `Materials`: needed vs inventory/ME, take.
