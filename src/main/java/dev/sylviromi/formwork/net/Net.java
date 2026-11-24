@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 
 /** All packets. Server to client: catalog sync and material reports. Client to server: selection, report query, craft request. */
 public final class Net {
-    private static final String VERSION = "12";
+    private static final String VERSION = "13";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(Formwork.ID, "main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -133,6 +133,29 @@ public final class Net {
         static UpdatePlaced read(FriendlyByteBuf b) {
             return new UpdatePlaced(b.readUUID(), b.readNbt(), b.readBoolean());
         }
+    }
+
+    /** Blocks that grow in (a placement) or shrink away (a dismantle) client-side; in is true for growing. */
+    public record Pop(boolean in, List<BlockPos> pos, List<Integer> states) {
+        void write(FriendlyByteBuf b) {
+            b.writeBoolean(in);
+            b.writeCollection(pos, FriendlyByteBuf::writeBlockPos);
+            b.writeCollection(states, FriendlyByteBuf::writeVarInt);
+        }
+
+        static Pop read(FriendlyByteBuf b) {
+            return new Pop(b.readBoolean(), b.readList(FriendlyByteBuf::readBlockPos), b.readList(FriendlyByteBuf::readVarInt));
+        }
+    }
+
+    /** Ticks a block takes to grow in; the real block is placed when it ends. */
+    public static final int GROW_TICKS = 6;
+
+    /** Tells the players near these blocks to animate them (the state is what the block is, or was). */
+    public static void pop(net.minecraft.server.level.ServerLevel level, boolean in, List<BlockPos> pos, java.util.function.Function<BlockPos, net.minecraft.world.level.block.state.BlockState> state) {
+        BlockPos c = pos.get(0);
+        CHANNEL.send(PacketDistributor.NEAR.with(() -> new PacketDistributor.TargetPoint(c.getX(), c.getY(), c.getZ(), 160, level.dimension())),
+                new Pop(in, List.copyOf(pos), pos.stream().map(p -> net.minecraft.world.level.block.Block.getId(state.apply(p))).toList()));
     }
 
     /** An update of a placement waits this many ticks before it happens; 0 = it happened or was cancelled. */
@@ -233,6 +256,9 @@ public final class Net {
                     ClientData.progressStart = System.currentTimeMillis();
                     ClientData.progressMillis = m.ticks() * 50L;
                 }).add();
+        CHANNEL.messageBuilder(Pop.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(Pop::write).decoder(Pop::read)
+                .consumerMainThread((m, ctx) -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> dev.sylviromi.formwork.client.BlockFx.add(m))).add();
         CHANNEL.messageBuilder(Aim.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(Aim::write).decoder(Aim::read).consumerMainThread((m, ctx) -> {
                     if (ctx.get().getSender() != null) AIMS.put(ctx.get().getSender().getUUID(), m);

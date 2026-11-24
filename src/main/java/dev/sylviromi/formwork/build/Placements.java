@@ -22,13 +22,14 @@ public final class Placements extends SavedData {
      * selection: Selection.save() of what was placed; box: the world blocks' bounds; skipped: world positions left out
      * because something was in the way, so dismantling and edits never take what was there.
      */
-    public record Rec(UUID id, CompoundTag selection, BlockPos target, Direction facing, BoundingBox box, @Nullable UUID owner, Set<BlockPos> skipped) {
+    public record Rec(UUID id, CompoundTag selection, BlockPos target, Direction facing, boolean mirror, BoundingBox box, @Nullable UUID owner, Set<BlockPos> skipped) {
         public CompoundTag save() {
             CompoundTag t = new CompoundTag();
             t.putUUID("id", id);
             t.put("selection", selection);
             t.putLong("target", target.asLong());
             t.putInt("facing", facing.get2DDataValue());
+            if (mirror) t.putBoolean("mirror", true);
             t.putIntArray("box", new int[]{box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ()});
             if (owner != null) t.putUUID("owner", owner);
             if (!skipped.isEmpty()) t.putLongArray("skipped", skipped.stream().mapToLong(BlockPos::asLong).toArray());
@@ -37,7 +38,7 @@ public final class Placements extends SavedData {
 
         public static Rec load(CompoundTag t) {
             int[] b = t.getIntArray("box");
-            return new Rec(t.getUUID("id"), t.getCompound("selection"), BlockPos.of(t.getLong("target")), Direction.from2DDataValue(t.getInt("facing")),
+            return new Rec(t.getUUID("id"), t.getCompound("selection"), BlockPos.of(t.getLong("target")), Direction.from2DDataValue(t.getInt("facing")), t.getBoolean("mirror"),
                     new BoundingBox(b[0], b[1], b[2], b[3], b[4], b[5]), t.hasUUID("owner") ? t.getUUID("owner") : null,
                     Arrays.stream(t.getLongArray("skipped")).mapToObj(BlockPos::of).collect(java.util.stream.Collectors.toUnmodifiableSet()));
         }
@@ -108,11 +109,11 @@ public final class Placements extends SavedData {
         Net.CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension), new Net.PlacementsSync(List.copyOf(recs.values())));
     }
 
-    public static Rec record(Map<BlockPos, ?> blocks, CompoundTag selection, BlockPos target, Direction facing, @Nullable UUID owner) {
-        return record(blocks, selection, target, facing, owner, Set.of());
+    public static Rec record(Map<BlockPos, ?> blocks, CompoundTag selection, BlockPos target, Direction facing, boolean mirror, @Nullable UUID owner) {
+        return record(blocks, selection, target, facing, mirror, owner, Set.of());
     }
 
-    public static Rec record(Map<BlockPos, ?> blocks, CompoundTag selection, BlockPos target, Direction facing, @Nullable UUID owner, Set<BlockPos> skipped) {
-        return new Rec(UUID.randomUUID(), selection, target, facing, BoundingBox.encapsulatingPositions(blocks.keySet()).orElseThrow(), owner, Set.copyOf(skipped));
+    public static Rec record(Map<BlockPos, ?> blocks, CompoundTag selection, BlockPos target, Direction facing, boolean mirror, @Nullable UUID owner, Set<BlockPos> skipped) {
+        return new Rec(UUID.randomUUID(), selection, target, facing, mirror, BoundingBox.encapsulatingPositions(blocks.keySet()).orElseThrow(), owner, Set.copyOf(skipped));
     }
 }

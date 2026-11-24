@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Mirror;
 import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
@@ -181,14 +182,23 @@ public final class Resolver {
         };
     }
 
-    /** World blocks: rotated by facing and centred on target (the bottom centre), so turning a structure keeps it in place. */
-    public static Map<BlockPos, Placed> world(Map<BlockPos, BlockSpec> specs, BlockPos target, Direction facing) {
+    /**
+     * World blocks: left-right mirrored if asked, rotated by facing and centred on target (the bottom centre), so turning a
+     * structure keeps it in place. Mirroring keeps the bounds, so it never moves the structure either.
+     */
+    public static Map<BlockPos, Placed> world(Map<BlockPos, BlockSpec> specs, BlockPos target, Direction facing, boolean mirror) {
         Rotation rot = rotationFor(facing);
-        var at = layout(Footprint.of(specs.keySet()), target, facing);
+        Footprint fp = Footprint.of(specs.keySet());
+        var at = layout(fp, target, facing);
         Map<BlockPos, Placed> out = new TreeMap<>();
         specs.forEach((p, spec) -> {
             BlockState state = state(spec);
-            if (state != null) out.put(at.apply(p), new Placed(state.rotate(rot), spec.nbt()));
+            if (state == null) return;
+            if (mirror) {
+                p = new BlockPos(fp.minX() + fp.maxX() - p.getX(), p.getY(), p.getZ());
+                state = state.mirror(Mirror.FRONT_BACK);
+            }
+            out.put(at.apply(p), new Placed(state.rotate(rot), spec.nbt()));
         });
         return out;
     }

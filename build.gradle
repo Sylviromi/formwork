@@ -22,7 +22,8 @@ minecraft {
         client {
             // -Pmbdev: screenshot run in run/saves/test (see client/DevHooks)
             if (project.hasProperty('mbdev')) {
-                property 'formwork.dev', 'true'
+                property 'formwork.dev', project.property('mbdev') ?: 'true'
+                property 'formwork.slow', project.findProperty('mbslow') ?: '1'
                 args '--quickPlaySingleplayer', 'test'
             }
         }

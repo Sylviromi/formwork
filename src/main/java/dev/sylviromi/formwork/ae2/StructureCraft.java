@@ -7,6 +7,7 @@ import appeng.api.networking.IGrid;
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.IGridNodeListener;
 import appeng.api.networking.IManagedGridNode;
+import appeng.api.networking.crafting.CraftingJobStatus;
 import appeng.api.networking.crafting.ICraftingProvider;
 import appeng.api.networking.security.IActionHost;
 import appeng.api.networking.security.IActionSource;
@@ -165,6 +166,13 @@ final class StructureCraft implements IActionHost {
         // inserted a tick after the push, when the CPU is waiting for it; AE2's interceptor ranks above our sink
         storage.insert(token, 1, Actionable.MODULATE, source);
         stage = Stage.DELIVERED;
+    }
+
+    /** While this player's job runs, every block it crafts reports the job's own progress (AE2 tracks the whole tree under the token). */
+    static void addProgress(ServerPlayer player, Map<AEKey, CraftingJobStatus> jobs) {
+        StructureCraft s = SESSIONS.get(player.getUUID());
+        CraftingJobStatus job = s == null ? null : jobs.get(s.token);
+        if (job != null) for (Input in : s.pattern.inputs()) jobs.putIfAbsent(in.item(), job);
     }
 
     private boolean jobRunning(IGrid grid) {

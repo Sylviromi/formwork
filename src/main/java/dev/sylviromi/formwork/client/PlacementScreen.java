@@ -87,6 +87,10 @@ public class PlacementScreen extends Screen {
         });
     }
 
+    private void mirror() {
+        edit(t -> t.putBoolean(PlacerItem.MIRROR, !t.getBoolean(PlacerItem.MIRROR)));
+    }
+
     private Direction look() {
         return ClientHooks.facing;
     }
@@ -101,6 +105,7 @@ public class PlacementScreen extends Screen {
         int x = x0 + PAD, right = x0 + W - PAD, gy = y0 + gridY, ly = y0 + lowY, step = B + GAP;
         icon(right - B, y0 + PAD, B, Icon.ANCHOR, Component.translatable("formwork.gui.anchor_tip"), () -> PlacerItem.anchor(tool()) != null,
                 () -> ClientHooks.toggleAnchor(tool()), ANCHOR);
+        text(right - 2 * B - GAP, y0 + PAD, B, "M", Component.translatable("formwork.gui.mirror_tip"), () -> PlacerItem.mirror(tool()), this::mirror, NORMAL);
         // compass, N up like a map: sets which way the structure faces
         for (Direction d : new Direction[]{Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST})
             text(x + (1 + d.getStepX()) * step, gy + (1 + d.getStepZ()) * step, B, d.getName().substring(0, 1).toUpperCase(java.util.Locale.ROOT),
@@ -118,6 +123,7 @@ public class PlacementScreen extends Screen {
         text(x, ly, GRID, Component.translatable("controls.reset").getString(), Component.translatable("formwork.gui.reset"), () -> false, () -> edit(t -> {
             t.putIntArray(PlacerItem.OFFSET, new int[3]);
             t.putInt(PlacerItem.ROTATION, 0);
+            t.putBoolean(PlacerItem.MIRROR, false);
         }), NORMAL);
     }
 
@@ -167,6 +173,7 @@ public class PlacementScreen extends Screen {
             case GLFW.GLFW_KEY_PAGE_UP -> move(Direction.UP, step());
             case GLFW.GLFW_KEY_PAGE_DOWN -> move(Direction.DOWN, step());
             case GLFW.GLFW_KEY_R -> face(facing().getClockWise());
+            case GLFW.GLFW_KEY_M -> mirror();
             default -> {
                 if (ClientHooks.PLACEMENT.matches(key, scan)) {
                     onClose();

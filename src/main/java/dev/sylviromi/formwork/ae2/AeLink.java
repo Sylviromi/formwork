@@ -92,13 +92,14 @@ public final class AeLink {
             var job = cpu.getJobStatus();
             if (job != null) jobs.putIfAbsent(job.crafting().what(), job);
         }
+        StructureCraft.addProgress(player, jobs); // a running "craft all": every block it makes shows the job's progress
         Map<Item, long[]> out = new java.util.HashMap<>();
         for (Item item : items) {
             var job = jobs.get(AEItemKey.of(item));
             long pct = -1, eta = -1;
             if (job != null && job.totalItems() > 0) {
                 pct = Math.min(99, job.progress() * 100 / job.totalItems());
-                // AE2 shows no estimate either: assume the rest goes as fast as the part done so far
+                // AE2 has no estimate in its API (its own screen shows elapsed time and percent): assume the rest goes as fast as the part done so far
                 if (job.progress() > 0) eta = job.elapsedTimeNanos() / 1_000_000_000L * (job.totalItems() - job.progress()) / job.progress();
             }
             out.put(item, new long[]{stored(grid, item), craftable(grid, item) ? 1 : 0, pct, Math.min(eta, Integer.MAX_VALUE)});

@@ -108,7 +108,7 @@ Multi Builder Tool's source is at `/mnt/Projects/multi-block-placer`, only for r
 
 ## How to test quickly
 - Headless: `./gradlew runServer` (port 25599, RCON 25575 with password test), then `python3 /tmp/rcon.py "formwork place formwork:gen/mekanism_turbine 80 -60 0"` and `data get block ...`. The rcon.py script is a 10-line client and may need recreating.
-- Screenshots: `./gradlew runClient -Pmbdev` uses `run/saves/test` (a copy of `run/world` with the pack structures datapack). See `client/DevHooks`.
+- Screenshots: `./gradlew runClient -Pmbdev` uses `run/saves/test` (a copy of `run/world` with the pack structures datapack). See `client/DevHooks`. `-Pmbdev=browser,mirror` runs only those groups (browser, editor, mm, placement, mirror, place, update, dismantle, animation, me, craft, jei); plain `-Pmbdev` runs all.
 
 ## v0.4.0 (2026-11-17, installed in the pack)
 - No tool modes: pointing at a block of a placed multiblock, hold use = dismantle, sneak+use = edit; anywhere else use = place. Only real blocks of a placement count (air or foreign blocks inside its bounds do not).

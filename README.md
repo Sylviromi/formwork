@@ -8,15 +8,19 @@ For Forge 1.20.1. AE2 is optional.
 
 **Configurable variants.** Many structures let you swap blocks for others of the same kind. Click a block in the preview to see what can go there, such as a different port, glass instead of casing, or another tier of the same part. The choices come from variant sets that packs can define, and frame edges and corners keep their block so the structure stays valid.
 
+**NuclearCraft.** If NuclearCraft is installed, its multiblocks (fission reactor, turbine, heat exchanger, molten salt reactor, fusion reactor, accelerators and more) show up in the picker. They are read from the mod itself, using the same example builds its in-game guide shows.
+
 **Materials.** The Materials tab lists what the structure needs next to what you have, in your inventory and on your ME network. If anything is missing, nothing gets used.
 
 **AE2.** Put the tool in a Wireless Access Point to link it. Click a missing block to craft it, or craft everything missing as one job, which you plan and confirm in AE2's own screen. Running crafts show their progress.
 
-**Placement card (H).** Anchor the preview, nudge it block by block and turn it. Hold Ctrl when placing to skip spots that are in the way.
+**Placement card (H).** Anchor the preview, nudge it block by block, turn it and mirror it (M). Hold Ctrl when placing to skip spots that are in the way.
+
+**Remembered settings.** The picker reopens a structure with the settings you last used for it, and a star on its card pins favourites to the top.
 
 **Editing.** Sneak and use the tool on a multiblock you placed to change its size, tier or parts. Only the blocks that change get swapped: you pay for the new ones and get the old ones back.
 
-**Dismantling.** Hold use on a multiblock you placed. Its blocks go to the ME network first, then your inventory.
+**Dismantling.** Hold use on a multiblock you placed. Its blocks go to the ME network first, then your inventory. Placing and dismantling sweep through the structure over a few ticks.
 
 Claims and protection mods are respected: every block is checked as if you had placed or broken it yourself.
 

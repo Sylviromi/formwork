@@ -88,5 +88,9 @@
   "formwork.gui.in_me": "ME：%s",
   "formwork.command.not_in_set": "该方块不属于任何变体组：%s",
   "formwork.command.unknown": "未知条目或无效变体：%s",
-  "formwork.command.placed": "已放置 %s 个方块（%s）"
+  "formwork.command.placed": "已放置 %s 个方块（%s）",
+  "formwork.gui.mirror_tip": "左右镜像 (M)",
+  "formwork.gui.favourite": "收藏",
+  "formwork.jei.hint": "点击停止或旋转",
+  "formwork.jei.materials": "%s 种材料"
 }

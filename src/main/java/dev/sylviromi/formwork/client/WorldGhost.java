@@ -53,7 +53,7 @@ public final class WorldGhost {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
         ItemStack tool = heldTool();
-        if (tool.isEmpty()) return;
+        if (tool.isEmpty() || BlockFx.dismantling()) return;
         Placements.Rec hovered = PlacerItem.placementLookedAt(mc.player);
         // pointing at a placed multiblock: show it instead of a new ghost
         if (hovered != null) {
@@ -63,7 +63,7 @@ public final class WorldGhost {
         Selection sel = PlacerItem.selection(tool);
         PlacerItem.Placement at = tool.isEmpty() || sel.isEmpty() ? null : ClientHooks.currentPlacement(tool);
         if (at == null) return;
-        String key = sel.save() + "|" + at.facing() + "|" + System.identityHashCode(Catalog.client) + Catalog.client.blueprints.size();
+        String key = sel.save() + "|" + at.facing() + "|" + at.mirror() + "|" + System.identityHashCode(Catalog.client) + Catalog.client.blueprints.size();
         if (!key.equals(meshKey)) {
             meshKey = key;
             if (mesh != null) mesh.close();
@@ -71,7 +71,7 @@ public final class WorldGhost {
             Map<BlockPos, BlockSpec> specs = Resolver.specs(Catalog.client, sel);
             rel = new LinkedHashMap<>();
             relBox = null;
-            if (specs != null && !specs.isEmpty()) Resolver.world(specs, BlockPos.ZERO, at.facing()).forEach((p, b) -> rel.put(p, b.state()));
+            if (specs != null && !specs.isEmpty()) Resolver.world(specs, BlockPos.ZERO, at.facing(), at.mirror()).forEach((p, b) -> rel.put(p, b.state()));
             for (BlockPos p : rel.keySet()) relBox = relBox == null ? new AABB(p) : relBox.minmax(new AABB(p));
             if (!rel.isEmpty()) mesh = new StructureMesh(rel);
         }
@@ -121,6 +121,7 @@ public final class WorldGhost {
      * held) and corner brackets on its bounds.
      */
     private static void renderPlaced(RenderLevelStageEvent event, Minecraft mc, Placements.Rec rec) {
+        if (BlockFx.growing()) return;
         BlockPos t = rec.target();
         String key = rec.id() + "|" + rec.selection();
         if (!key.equals(placedKey)) {

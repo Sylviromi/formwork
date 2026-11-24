@@ -74,6 +74,10 @@ public class EditorScreen extends Screen {
         this.editing = editing;
         Selection sel = editing != null ? Selection.load(editing.selection()) : PlacerItem.selection(WorldGhost.heldTool());
         int i = entry.members().indexOf(sel.entry());
+        if (i < 0 && editing == null) { // a structure picked from the list: start from what was used for it last time
+            sel = Memory.last(entry.key());
+            i = entry.members().indexOf(sel.entry());
+        }
         if (i >= 0) {
             tier = i;
             params = sel.params();
@@ -99,7 +103,7 @@ public class EditorScreen extends Screen {
         return Catalog.client.generator(currentId());
     }
 
-    private Selection selection() {
+    Selection selection() {
         return new Selection(currentId(), params, Map.of(), Map.copyOf(overrides));
     }
 
@@ -123,6 +127,12 @@ public class EditorScreen extends Screen {
     /** Dev: selects the first slot for editing. */
     void devPickFirstSlot() {
         slotMap.keySet().stream().findFirst().ifPresent(this::select);
+    }
+
+    void devTier(int i) {
+        tier = i;
+        overrides.clear();
+        rebuild(true);
     }
 
     void devLayer(int l) {
@@ -169,6 +179,7 @@ public class EditorScreen extends Screen {
         tabs = t;
         if (!tabs.contains(tab)) tab = tabs.get(0);
         lines = buildLines();
+        if (send && editing == null) Memory.remember(entry.key(), selection().save());
         if (send) Net.CHANNEL.sendToServer(editing != null ? new Net.UpdatePlaced(editing.id(), selection().save(), false) : new Net.SetSelection(selection().save()));
     }
 

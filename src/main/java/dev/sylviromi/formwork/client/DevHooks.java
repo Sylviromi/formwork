@@ -1,6 +1,7 @@
 package dev.sylviromi.formwork.client;
 
 import dev.sylviromi.formwork.Formwork;
+import dev.sylviromi.formwork.build.Dismantler;
 import dev.sylviromi.formwork.build.Placements;
 import dev.sylviromi.formwork.build.Placer;
 import dev.sylviromi.formwork.build.Resolver;
@@ -29,20 +30,26 @@ import java.util.*;
 import java.util.function.Consumer;
 
 /**
- * Dev-only test run, enabled with -Dformwork.dev=true (./gradlew runClient -Pmbdev).
- * Clears the test area, screenshots the browser, editor tabs (Mekanism, void miner twice for its animated textures,
- * Masterful Machinery with the structure check and block picker), placement card and ghost, then places a tier 9 void
- * miner with speed modifiers, edits it to item modifiers (a timed job) and dismantles it by holding use, logging each
- * result. Then quits. MM needs `./gradlew copyPackMods`, the pack's MM startup scripts in run/kubejs and
- * tools/dev_mm_structures.py.
+ * Dev-only screenshot run: ./gradlew runClient -Pmbdev runs every group, -Pmbdev=gui,mirror only the named ones (comma
+ * separated, see GROUPS below), so a GUI change needs no structures built. Each run resets the test area first, then quits.
+ * Screenshots go to run/screenshots, results to the log ("dev: ..."). The mm group needs `./gradlew copyPackMods`, the pack's
+ * MM startup scripts in run/kubejs and tools/dev_mm_structures.py.
  */
 @Mod.EventBusSubscriber(modid = Formwork.ID, value = Dist.CLIENT)
 public final class DevHooks {
-    private static final boolean ON = Boolean.getBoolean("formwork.dev");
+    private static final String PROPERTY = System.getProperty("formwork.dev", "");
+    private static final boolean ON = !PROPERTY.isEmpty() && !PROPERTY.equals("false");
     private static final String TURBINE = "formwork:gen/mekanism_turbine", VOID_MINER = "pi:voidminer/voidminer",
             FISSION = "formwork:gen/mekanism_fission_reactor", MM = "pi:dev_mm/water_condenser", MODIFIERS = "formwork:voidminer_modifiers",
             SPEED = "voidminers:ultimate_speed_modifier", ITEM = "voidminers:ultimate_item_modifier";
+    /** -Pmbslow=N runs client and server N times slower so every frame of a recorded clip can be captured (see record). */
+    private static final int SLOW = Math.max(1, Integer.getInteger("formwork.slow", 1));
     private static int tick;
+    private static String recording;
+    private static int recFrames;
+    private static long emptySince = -1;
+    /** Tick of the last step added: each group continues from there. */
+    private static int t;
 
     /** At tick `at` of the run: an action, and/or a screenshot named shot. */
     private record Step(int at, String shot, Consumer<Minecraft> action) {
@@ -54,119 +61,279 @@ public final class DevHooks {
         STEPS.add(new Step(at, shot, action));
     }
 
+    /**
+     * browser, editor (Mekanism tabs, void miner variants), mm (Masterful Machinery check and picker), placement (the card and
+     * the ghost), mirror (the card with mirror on), place, update (edit a placed miner, timed and cancelled), dismantle (hold
+     * use), animation (place and dismantle sweeps mid-way), me (access point range), craft (AE2 craft screens, craft all), jei.
+     */
+    private static final Map<String, Runnable> GROUPS = new LinkedHashMap<>();
+
     static {
-        int t = 60;
+        GROUPS.put("browser", () -> {
+            step(t += 60, null, mc -> mc.setScreen(new BrowserScreen()));
+            step(t += 50, "browser", null);
+        });
+        GROUPS.put("editor", () -> {
+            step(t += 10, null, mc -> editor(mc, TURBINE, "SETTINGS", null));
+            step(t += 50, "editor_settings", null);
+            step(t += 10, null, mc -> editor(mc, VOID_MINER, "VARIANTS", e -> {
+                e.devCount(MODIFIERS, "voidminers:verdium_speed_modifier", 4);
+                e.devCount(MODIFIERS, "voidminers:verdium_energy_modifier", 4);
+            }));
+            step(t += 50, "editor_variants", null);
+            step(t += 55, "editor_variants_later", null); // 2.75 s later: the ultimate textures change frame every 2 s
+            step(t += 10, null, mc -> editor(mc, FISSION, "MATERIALS", null));
+            step(t += 50, "editor_materials", null);
+            step(t += 10, null, mc -> editor(mc, FISSION, "SETTINGS", e -> e.devLayer(3)));
+            step(t += 50, "editor_layers", null);
+        });
+        GROUPS.put("mm", () -> {
+            step(t += 10, null, mc -> editor(mc, MM, "VARIANTS", EditorScreen::devWrongPort));
+            step(t += 50, "editor_mm_check", null);
+            step(t += 5, null, mc -> { if (mc.screen instanceof EditorScreen e) e.devPickFirstSlot(); });
+            step(t += 20, "editor_mm_picker", null);
+        });
+        GROUPS.put("placement", () -> {
+            step(t += 10, null, mc -> {
+                editor(mc, TURBINE, "SETTINGS", null);
+                mc.setScreen(null);
+                mc.player.setXRot(55);
+                mc.setScreen(new PlacementScreen());
+            });
+            step(t += 50, "placement", null);
+            step(t += 10, null, mc -> mc.setScreen(null));
+            step(t += 40, "ghost", null);
+        });
+        GROUPS.put("mirror", () -> {
+            step(t += 10, null, mc -> {
+                editor(mc, TURBINE, "SETTINGS", null);
+                mc.setScreen(null);
+                mc.player.setXRot(12);
+                onServer(mc, sp -> {
+                    Direction b = sp.getDirection().getOpposite();
+                    sp.teleportTo(sp.getX() + b.getStepX() * 16, sp.getY(), sp.getZ() + b.getStepZ() * 16);
+                });
+                setMirror(false);
+                mc.setScreen(new PlacementScreen());
+            });
+            step(t += 50, "mirror_off", null);
+            step(t += 5, null, mc -> setMirror(true));
+            step(t += 15, "mirror_on", null);
+            step(t += 5, null, mc -> mc.setScreen(null));
+        });
+        GROUPS.put("place", () -> {
+            needMiner();
+            step(t += 10, "hover", null);
+        });
+        GROUPS.put("update", () -> {
+            needMiner();
+            // editing in survival with missing materials: Apply is greyed out
+            step(t += 5, null, mc -> onServer(mc, sp -> sp.setGameMode(net.minecraft.world.level.GameType.SURVIVAL)));
+            step(t += 20, null, DevHooks::aimAtPlaced); // survival: the player dropped, aim again
+            step(t += 5, null, mc -> {
+                ClientHooks.openScreen();
+                if (mc.screen instanceof EditorScreen e) e.devCount(MODIFIERS, ITEM, 4);
+            });
+            step(t += 40, "edit_apply_missing", null);
+            step(t += 5, null, mc -> {
+                mc.setScreen(null);
+                onServer(mc, sp -> sp.setGameMode(net.minecraft.world.level.GameType.CREATIVE));
+            });
+            step(t += 10, null, DevHooks::aimAtPlaced);
+            step(t += 10, null, mc -> onServer(mc, DevHooks::updateLooked));
+            step(t += 15, "updating", null);
+            step(t += 110, null, mc -> onServer(mc, sp -> log(sp, "after update")));
+            // a second update, cancelled during the wait: nothing changes
+            step(t += 5, null, mc -> onServer(mc, DevHooks::updateLooked));
+            step(t += 10, null, mc -> onServer(mc, sp -> Formwork.LOG.info("dev: cancel: {}", Updater.cancel(sp))));
+            step(t += 50, null, mc -> onServer(mc, sp -> log(sp, "after cancelled update")));
+        });
+        GROUPS.put("dismantle", () -> {
+            needMiner();
+            step(t += 10, null, mc -> KeyMapping.set(mc.options.keyUse.getKey(), true));
+            step(t += 30, "dismantle_hold", null);
+            step(t += 5, "dismantle_sweep", null);
+            step(t += 85, null, mc -> {
+                KeyMapping.set(mc.options.keyUse.getKey(), false);
+                onServer(mc, sp -> log(sp, "after holding use"));
+            });
+        });
+        GROUPS.put("animation", () -> {
+            step(t += 10, null, mc -> mc.player.setXRot(-20));
+            step(t += 20, null, mc -> record("place"));
+            step(t += 1, null, mc -> onServer(mc, DevHooks::placeAnimated));
+            step(t += 70, null, mc -> record(null));
+            step(t += 5, null, DevHooks::aimAtPlaced);
+            step(t += 20, null, mc -> {
+                record("dismantle");
+                KeyMapping.set(mc.options.keyUse.getKey(), true);
+            });
+            step(t += 200, null, mc -> {
+                KeyMapping.set(mc.options.keyUse.getKey(), false);
+                record(null);
+                onServer(mc, sp -> log(sp, "after animated dismantle"));
+            });
+        });
+        GROUPS.put("me", () -> {
+            // ME range: a powered access point with 8 boosters (~38 blocks with AE2's default config, 16 without)
+            step(t += 20, null, mc -> onServer(mc, DevHooks::buildAccessPoint));
+            step(t += 60, null, mc -> onServer(mc, sp -> meAt(sp, 10)));
+            step(t += 20, null, mc -> onServer(mc, sp -> meAt(sp, 30)));
+            step(t += 20, null, mc -> onServer(mc, sp -> meAt(sp, 80)));
+            // AEInfinityBooster: an infinity card in the access point instead of boosters (only if the mod is in the dev run)
+            step(t += 20, null, mc -> onServer(mc, DevHooks::infinityCard));
+            step(t += 60, null, mc -> onServer(mc, sp -> meAt(sp, 80)));
+            // AE2's own craft screen from the wand, next to the access point
+            step(t += 10, null, mc -> {
+                editor(mc, FISSION, "MATERIALS", null);
+                ClientHooks.resume = (EditorScreen) mc.screen;
+            });
+            step(t += 20, null, mc -> onServer(mc, sp -> {
+                meAt(sp, 5);
+                dev.sylviromi.formwork.ae2.AeLink.openCraft(sp, net.minecraft.world.InteractionHand.MAIN_HAND, net.minecraft.world.item.Items.STONE, 64);
+            }));
+            step(t += 40, "ae2_craft", null);
+            // AE2's Back (and Start) return through the host: the editor comes back
+            step(t += 5, null, mc -> onServer(mc, DevHooks::aeBack));
+            step(t += 30, "ae2_back", null);
+            step(t += 1, null, mc -> Formwork.LOG.info("dev: screen after AE2 back: {}", mc.screen));
+        });
+        GROUPS.put("craft", () -> {
+            step(t += 10, null, mc -> onServer(mc, sp -> {
+                if (DevHooks.wap == null) buildAccessPoint(sp);
+            }));
+            step(t += 20, null, mc -> onServer(mc, sp -> meAt(sp, 5)));
+            // Craft all as one job: a drive holding the fission reactor's glass and casing, then the structure job's AE2 plan, started
+            step(t += 5, null, mc -> onServer(mc, DevHooks::buildPatterns));
+            step(t += 5, null, mc -> onServer(mc, DevHooks::stockReactorBlocks));
+            step(t += 10, null, mc -> onServer(mc, DevHooks::stockReactorBlocks)); // the new drive joins the grid a tick later
+            step(t += 20, null, mc -> {
+                editor(mc, FISSION, "MATERIALS", null);
+                ClientHooks.resume = (EditorScreen) mc.screen;
+            });
+            step(t += 40, "craft_all_button", null);
+            step(t += 5, null, mc -> onServer(mc, sp -> dev.sylviromi.formwork.ae2.AeLink.craftStructure(sp, net.minecraft.world.InteractionHand.MAIN_HAND,
+                    Map.of(reactorBlock("reactor_glass"), 146, reactorBlock("fission_reactor_casing"), 68), net.minecraft.network.chat.Component.literal("Fission Reactor"))));
+            step(t += 60, "craft_all_confirm", null);
+            step(t += 1, null, mc -> Formwork.LOG.info("dev: screen after craft all: {}", mc.screen));
+            step(t += 5, null, mc -> onServer(mc, sp -> {
+                if (sp.containerMenu instanceof appeng.menu.me.crafting.CraftConfirmMenu m) m.startJob();
+                else Formwork.LOG.warn("dev: no AE2 plan open: {}", sp.containerMenu);
+            }));
+            // a stand-in machine: a chest takes the cobblestone the provider pushes, and a few blocks per step are handed back to the job as its output
+            step(t += 5, null, mc -> onServer(mc, DevHooks::addChestMachine));
+            for (int i = 0; i < 8; i++) {
+                int n = i;
+                step(t += 25, null, mc -> onServer(mc, sp -> {
+                    DevHooks.machineOutput(sp, 18, 8);
+                    Formwork.LOG.info("dev: craft all progress (percent/seconds left per block): {}",
+                            dev.sylviromi.formwork.ae2.AeLink.snapshot(sp, sp.getMainHandItem(), List.of(reactorBlock("reactor_glass"), reactorBlock("fission_reactor_casing")))
+                                    .values().stream().map(v -> v[2] + "%/" + v[3] + "s").toList());
+                }));
+                if (n == 1 || n == 3 || n == 5) step(t += 6, "craft_progress_" + n, null);
+            }
+            step(t += 60, null, mc -> onServer(mc, sp -> Formwork.LOG.info("dev: after the structure job: ME {} (glass, casing)",
+                    dev.sylviromi.formwork.ae2.AeLink.snapshot(sp, sp.getMainHandItem(), List.of(reactorBlock("reactor_glass"), reactorBlock("fission_reactor_casing"))).values().stream().map(v -> v[0]).toList())));
+            step(t += 1, null, mc -> Formwork.LOG.info("dev: screen after the structure job: {}", mc.screen));
+            // AE2's own path for comparison: amount screen, then Next
+            step(t += 5, null, mc -> onServer(mc, sp -> dev.sylviromi.formwork.ae2.AeLink.openCraft(sp, net.minecraft.world.InteractionHand.MAIN_HAND,
+                    ForgeRegistries.ITEMS.getValue(new net.minecraft.resources.ResourceLocation("mekanismgenerators:reactor_glass")), 146)));
+            step(t += 10, null, mc -> onServer(mc, sp -> { if (sp.containerMenu instanceof appeng.menu.me.crafting.CraftAmountMenu m) m.confirm(146, false, false); }));
+            step(t += 40, "ae2_own_plan", null);
+        });
+        GROUPS.put("memory", () -> {
+            // remembered settings: pick something, reopen the editor, and read it back; then a favourite and the browser order
+            step(t += 10, null, mc -> {
+                editor(mc, VOID_MINER, "VARIANTS", e -> {
+                    e.devTier(8);
+                    e.devCount(MODIFIERS, "voidminers:verdium_speed_modifier", 3);
+                });
+                mc.setScreen(null);
+                Formwork.LOG.info("dev: remembered after closing: {}", Memory.last(VOID_MINER).save());
+            });
+            step(t += 5, null, mc -> onServer(mc, sp -> PlacerItem.setSelection(sp.getMainHandItem(), Selection.EMPTY)));
+            step(t += 10, null, mc -> {
+                editor(mc, VOID_MINER, "VARIANTS", null);
+                Formwork.LOG.info("dev: remembered selection restored in the editor: {}", mc.screen instanceof EditorScreen e ? e.selection().save() : "no editor");
+            });
+            step(t += 40, "memory_restored", null);
+            step(t += 5, null, mc -> {
+                if (Memory.favourite(TURBINE)) Memory.toggleFavourite(TURBINE);
+                mc.setScreen(new BrowserScreen());
+            });
+            step(t += 40, "memory_before", null);
+            step(t += 5, null, mc -> Memory.toggleFavourite(TURBINE));
+            step(t += 5, null, mc -> mc.setScreen(new BrowserScreen()));
+            step(t += 40, "memory_favourite", null);
+            step(t += 5, null, mc -> Formwork.LOG.info("dev: favourite stored: {}", Memory.favourite(TURBINE)));
+        });
+        GROUPS.put("stateful", () -> {
+            // mirror and rotate stairs and a lever, and read the states back
+            step(t += 10, null, mc -> {
+                var specs = new java.util.TreeMap<BlockPos, dev.sylviromi.formwork.structure.BlockSpec>();
+                specs.put(new BlockPos(0, 0, 0), new dev.sylviromi.formwork.structure.BlockSpec("minecraft:oak_stairs", Map.of("facing", "east", "half", "bottom", "shape", "straight"), null));
+                specs.put(new BlockPos(2, 0, 0), new dev.sylviromi.formwork.structure.BlockSpec("minecraft:lever", Map.of("face", "wall", "facing", "east"), null));
+                specs.put(new BlockPos(1, 0, 1), new dev.sylviromi.formwork.structure.BlockSpec("minecraft:oak_stairs", Map.of("facing", "north", "half", "bottom", "shape", "inner_left"), null));
+                for (boolean m : new boolean[]{false, true})
+                    for (Direction f : new Direction[]{Direction.NORTH, Direction.EAST})
+                        Resolver.world(specs, BlockPos.ZERO, f, m).forEach((pos, b) -> Formwork.LOG.info("dev: stateful mirror={} facing={} {} -> {}", m, f, pos, b.state()));
+            });
+        });
+        GROUPS.put("night", () -> {
+            step(t += 10, null, mc -> onServer(mc, sp -> sp.serverLevel().setDayTime(18000)));
+            step(t += 20, null, mc -> mc.player.setXRot(-20));
+            step(t += 5, null, mc -> record("night"));
+            step(t += 1, null, mc -> onServer(mc, DevHooks::placeAnimated));
+            step(t += 70, null, mc -> record(null));
+            step(t += 5, null, mc -> onServer(mc, sp -> sp.serverLevel().setDayTime(6000)));
+        });
+        GROUPS.put("midgrow", () -> {
+            // dismantling while the placement is still growing in: nothing may stay behind
+            step(t += 10, null, mc -> onServer(mc, sp -> {
+                for (var r : new java.util.ArrayList<>(Placements.of(sp.serverLevel()).all())) Dismantler.dismantle(sp, sp.getMainHandItem(), r);
+            }));
+            step(t += 20, null, mc -> onServer(mc, DevHooks::placeAnimated));
+            step(t += 4, null, mc -> onServer(mc, sp -> new java.util.ArrayList<>(Placements.of(sp.serverLevel()).all()).forEach(r -> Dismantler.dismantle(sp, sp.getMainHandItem(), r))));
+            step(t += 80, null, mc -> onServer(mc, sp -> log(sp, "after dismantling mid-grow")));
+        });
+        GROUPS.put("jei", () -> {
+            // JEI: every structure, then the ones using reactor glass
+            step(t += 5, null, mc -> mc.setScreen(null));
+            step(t += 5, null, mc -> JeiStructures.devShow(null));
+            step(t += 40, "jei_structures", null);
+            step(t += 5, null, mc -> JeiStructures.devShow(new ItemStack(reactorBlock("reactor_glass"))));
+            step(t += 40, "jei_uses", null);
+            step(t += 5, null, mc -> JeiStructures.devShow(null));
+            step(t += 30, null, mc -> moveMouse(mc, 912, 500));
+            step(t += 20, "jei_hover", null);
+            step(t += 5, null, mc -> moveMouse(mc, 912, 520));
+            step(t += 20, "jei_hover2", null);
+            step(t += 5, null, mc -> moveMouse(mc, 703, 760));
+            step(t += 20, "jei_material_casing", null);
+            step(t += 5, null, mc -> moveMouse(mc, 943, 760));
+            step(t += 20, "jei_material_last", null);
+        });
+    }
+
+    /** Builds the steps of the groups asked for in -Pmbdev (all when none are named). */
+    private static void plan() {
+        Set<String> wanted = PROPERTY.equals("true") || PROPERTY.equals("all") ? GROUPS.keySet() : new LinkedHashSet<>(Arrays.asList(PROPERTY.split(",")));
+        wanted.stream().filter(g -> !GROUPS.containsKey(g)).forEach(g -> Formwork.LOG.warn("dev: no group {}, known: {}", g, GROUPS.keySet()));
         step(20, null, mc -> onServer(mc, DevHooks::reset));
-        step(t, null, mc -> mc.setScreen(new BrowserScreen()));
-        step(t += 50, "browser", null);
-        step(t += 10, null, mc -> editor(mc, TURBINE, "SETTINGS", null));
-        step(t += 50, "editor_settings", null);
-        step(t += 10, null, mc -> editor(mc, VOID_MINER, "VARIANTS", e -> {
-            e.devCount(MODIFIERS, "voidminers:verdium_speed_modifier", 4);
-            e.devCount(MODIFIERS, "voidminers:verdium_energy_modifier", 4);
-        }));
-        step(t += 50, "editor_variants", null);
-        step(t += 55, "editor_variants_later", null); // 2.75 s later: the ultimate textures change frame every 2 s
-        step(t += 5, null, mc -> editor(mc, MM, "VARIANTS", EditorScreen::devWrongPort));
-        step(t += 50, "editor_mm_check", null);
-        step(t += 5, null, mc -> { if (mc.screen instanceof EditorScreen e) e.devPickFirstSlot(); });
-        step(t += 20, "editor_mm_picker", null);
-        step(t += 10, null, mc -> editor(mc, FISSION, "MATERIALS", null));
-        step(t += 50, "editor_materials", null);
-        step(t += 10, null, mc -> editor(mc, FISSION, "SETTINGS", e -> e.devLayer(3)));
-        step(t += 50, "editor_layers", null);
-        step(t += 10, null, mc -> {
-            editor(mc, TURBINE, "SETTINGS", null);
-            mc.setScreen(null);
-            mc.player.setXRot(55);
-            mc.setScreen(new PlacementScreen());
+        t = 20;
+        GROUPS.forEach((name, steps) -> {
+            if (wanted.contains(name)) steps.run();
         });
-        step(t += 50, "placement", null);
-        step(t += 10, null, mc -> mc.setScreen(null));
-        step(t += 40, "ghost", null);
-        step(t += 10, null, DevHooks::placeVoidMiner);
-        step(t += 40, null, DevHooks::aimAtPlaced);
-        step(t += 10, "hover", null);
-        // editing in survival with missing materials: Apply is greyed out
-        step(t += 5, null, mc -> onServer(mc, sp -> sp.setGameMode(net.minecraft.world.level.GameType.SURVIVAL)));
-        step(t += 20, null, DevHooks::aimAtPlaced); // survival: the player dropped, aim again
-        step(t += 5, null, mc -> {
-            ClientHooks.openScreen();
-            if (mc.screen instanceof EditorScreen e) e.devCount(MODIFIERS, ITEM, 4);
-        });
-        step(t += 40, "edit_apply_missing", null);
-        step(t += 5, null, mc -> {
-            mc.setScreen(null);
-            onServer(mc, sp -> sp.setGameMode(net.minecraft.world.level.GameType.CREATIVE));
-        });
-        step(t += 10, null, DevHooks::aimAtPlaced);
-        step(t += 10, null, mc -> onServer(mc, DevHooks::updateLooked));
-        step(t += 15, "updating", null);
-        step(t += 110, null, mc -> onServer(mc, sp -> log(sp, "after update")));
-        // a second update, cancelled during the wait: nothing changes
-        step(t += 5, null, mc -> onServer(mc, DevHooks::updateLooked));
-        step(t += 10, null, mc -> onServer(mc, sp -> Formwork.LOG.info("dev: cancel: {}", Updater.cancel(sp))));
-        step(t += 50, null, mc -> onServer(mc, sp -> log(sp, "after cancelled update")));
-        step(t += 10, null, mc -> KeyMapping.set(mc.options.keyUse.getKey(), true));
-        step(t += 30, "dismantle_hold", null);
-        step(t += 90, null, mc -> {
-            KeyMapping.set(mc.options.keyUse.getKey(), false);
-            onServer(mc, sp -> log(sp, "after holding use"));
-        });
-        // ME range: a powered access point with 8 boosters (~38 blocks with AE2's default config, 16 without)
-        step(t += 20, null, mc -> onServer(mc, DevHooks::buildAccessPoint));
-        step(t += 60, null, mc -> onServer(mc, sp -> meAt(sp, 10)));
-        step(t += 20, null, mc -> onServer(mc, sp -> meAt(sp, 30)));
-        step(t += 20, null, mc -> onServer(mc, sp -> meAt(sp, 80)));
-        // AEInfinityBooster: an infinity card in the access point instead of boosters (only if the mod is in the dev run)
-        step(t += 20, null, mc -> onServer(mc, DevHooks::infinityCard));
-        step(t += 60, null, mc -> onServer(mc, sp -> meAt(sp, 80)));
-        // AE2's own craft screen from the wand, next to the access point
-        step(t += 10, null, mc -> {
-            editor(mc, FISSION, "MATERIALS", null);
-            ClientHooks.resume = (EditorScreen) mc.screen;
-        });
-        step(t += 20, null, mc -> onServer(mc, sp -> {
-            meAt(sp, 5);
-            dev.sylviromi.formwork.ae2.AeLink.openCraft(sp, net.minecraft.world.InteractionHand.MAIN_HAND, net.minecraft.world.item.Items.STONE, 64);
-        }));
-        step(t += 40, "ae2_craft", null);
-        // AE2's Back (and Start) return through the host: the editor comes back
-        step(t += 5, null, mc -> onServer(mc, DevHooks::aeBack));
-        step(t += 30, "ae2_back", null);
-        step(t += 1, null, mc -> Formwork.LOG.info("dev: screen after AE2 back: {}", mc.screen));
-        // Craft all as one job: a drive holding the fission reactor's glass and casing, then the structure job's AE2 plan, started
-        step(t += 5, null, mc -> onServer(mc, DevHooks::buildPatterns));
-        step(t += 5, null, mc -> onServer(mc, DevHooks::stockReactorBlocks));
-        step(t += 10, null, mc -> onServer(mc, DevHooks::stockReactorBlocks)); // the new drive joins the grid a tick later
-        step(t += 20, null, mc -> {
-            editor(mc, FISSION, "MATERIALS", null);
-            ClientHooks.resume = (EditorScreen) mc.screen;
-        });
-        step(t += 40, "craft_all_button", null);
-        step(t += 5, null, mc -> onServer(mc, sp -> dev.sylviromi.formwork.ae2.AeLink.craftStructure(sp, net.minecraft.world.InteractionHand.MAIN_HAND,
-                Map.of(reactorBlock("reactor_glass"), 146, reactorBlock("fission_reactor_casing"), 68), net.minecraft.network.chat.Component.literal("Fission Reactor"))));
-        step(t += 60, "craft_all_confirm", null);
-        step(t += 1, null, mc -> Formwork.LOG.info("dev: screen after craft all: {}", mc.screen));
-        step(t += 5, null, mc -> onServer(mc, sp -> {
-            if (sp.containerMenu instanceof appeng.menu.me.crafting.CraftConfirmMenu m) m.startJob();
-            else Formwork.LOG.warn("dev: no AE2 plan open: {}", sp.containerMenu);
-        }));
-        step(t += 60, null, mc -> onServer(mc, sp -> Formwork.LOG.info("dev: after the structure job: ME {} (glass, casing)",
-                dev.sylviromi.formwork.ae2.AeLink.snapshot(sp, sp.getMainHandItem(), List.of(reactorBlock("reactor_glass"), reactorBlock("fission_reactor_casing"))).values().stream().map(v -> v[0]).toList())));
-        step(t += 1, null, mc -> Formwork.LOG.info("dev: screen after the structure job: {}", mc.screen));
-        // AE2's own path for comparison: amount screen, then Next
-        step(t += 5, null, mc -> onServer(mc, sp -> dev.sylviromi.formwork.ae2.AeLink.openCraft(sp, net.minecraft.world.InteractionHand.MAIN_HAND,
-                ForgeRegistries.ITEMS.getValue(new net.minecraft.resources.ResourceLocation("mekanismgenerators:reactor_glass")), 146)));
-        step(t += 10, null, mc -> onServer(mc, sp -> { if (sp.containerMenu instanceof appeng.menu.me.crafting.CraftAmountMenu m) m.confirm(146, false, false); }));
-        step(t += 40, "ae2_own_plan", null);
-        // JEI: every structure, then the ones using reactor glass
-        step(t += 5, null, mc -> mc.setScreen(null));
-        step(t += 5, null, mc -> JeiStructures.devShow(null));
-        step(t += 40, "jei_structures", null);
-        step(t += 5, null, mc -> JeiStructures.devShow(new ItemStack(reactorBlock("reactor_glass"))));
-        step(t += 40, "jei_uses", null);
         step(t += 20, null, Minecraft::stop);
+    }
+
+    /** Places the tier 9 void miner and looks at it, unless a placement exists already (an earlier group). */
+    private static void needMiner() {
+        step(t += 10, null, mc -> onServer(mc, sp -> {
+            if (Placements.of(sp.serverLevel()).all().isEmpty()) placeVoidMiner(mc, sp);
+        }));
+        step(t += 40, null, DevHooks::aimAtPlaced);
+        step(t += 10, null, DevHooks::aimAtPlaced);
     }
 
     private DevHooks() {
@@ -185,7 +352,10 @@ public final class DevHooks {
     public static void onTick(TickEvent.ClientTickEvent e) {
         Minecraft mc = Minecraft.getInstance();
         if (!ON || e.phase != TickEvent.Phase.END || mc.player == null) return;
-        tick++;
+        if (tick++ == 0) {
+            plan();
+            if (SLOW > 1) slowClient(mc);
+        }
         for (Step s : STEPS)
             if (s.at() == tick) {
                 if (s.action() != null) s.action().accept(mc);
@@ -228,19 +398,46 @@ public final class DevHooks {
         return out;
     }
 
-    /** Server: a tier 9 void miner with 4 speed modifiers 3 blocks ahead (with a record); client: looking at it. */
-    private static void placeVoidMiner(Minecraft mc) {
-        onServer(mc, sp -> {
-            Direction f = sp.getDirection();
-            Selection sel = new Selection(tier9(Catalog.server), new int[0], Map.of(), modifiers(SPEED, 4));
-            var specs = Resolver.specs(Catalog.server, sel);
-            BlockPos target = Resolver.centerFor(Resolver.Footprint.of(specs.keySet()), sp.blockPosition().relative(f, 3), f, f);
-            var blocks = Resolver.world(specs, target, f);
-            Placer.put(sp.serverLevel(), blocks, sp);
-            Placements.of(sp.serverLevel()).add(sp.serverLevel(), Placements.record(blocks, sel.save(), target, f, sp.getUUID()));
-            log(sp, "placed at " + target + " facing " + f);
-        });
-        mc.player.setXRot(15);
+    /** Server: a tier 9 void miner with 4 speed modifiers 3 blocks ahead (with a record). */
+    private static void placeVoidMiner(Minecraft mc, ServerPlayer sp) {
+        Direction f = sp.getDirection();
+        Selection sel = new Selection(tier9(Catalog.server), new int[0], Map.of(), modifiers(SPEED, 4));
+        var specs = Resolver.specs(Catalog.server, sel);
+        BlockPos target = Resolver.centerFor(Resolver.Footprint.of(specs.keySet()), sp.blockPosition().relative(f, 3), f, f);
+        var blocks = Resolver.world(specs, target, f, false);
+        Placer.put(sp.serverLevel(), blocks, sp);
+        Placements.of(sp.serverLevel()).add(sp.serverLevel(), Placements.record(blocks, sel.save(), target, f, false, sp.getUUID()));
+        log(sp, "placed at " + target + " facing " + f);
+        mc.execute(() -> mc.player.setXRot(15));
+    }
+
+    /** Server: the same miner placed the way a player does, so it appears as a sweep. */
+    private static void placeAnimated(ServerPlayer sp) {
+        Direction f = sp.getDirection();
+        ItemStack tool = sp.getMainHandItem();
+        PlacerItem.setSelection(tool, new Selection(tier9(Catalog.server), new int[0], Map.of(), modifiers(SPEED, 4)));
+        var specs = Resolver.specs(Catalog.server, PlacerItem.selection(tool));
+        Placer.place(sp, tool, Resolver.centerFor(Resolver.Footprint.of(specs.keySet()), sp.blockPosition().relative(f, 8), f, f), f, false, false);
+    }
+
+    /** Puts the mouse at window pixel x, y: sets what the game reads as the cursor position (dev run only). */
+    private static void moveMouse(Minecraft mc, double x, double y) {
+        try {
+            for (var f : new String[][]{{"xpos", "" + x}, {"ypos", "" + y}}) {
+                var field = net.minecraft.client.MouseHandler.class.getDeclaredField(f[0]);
+                field.setAccessible(true);
+                field.setDouble(mc.mouseHandler, Double.parseDouble(f[1]));
+            }
+        } catch (ReflectiveOperationException e) {
+            Formwork.LOG.warn("dev: cannot move the mouse", e);
+        }
+    }
+
+    private static void setMirror(boolean on) {
+        var tool = WorldGhost.heldTool();
+        var tag = PlacerItem.placementTag(tool);
+        tag.putBoolean(PlacerItem.MIRROR, on);
+        ClientHooks.setPlacement(tool, tag);
     }
 
     /** Client: looks at the placed block nearest to the eyes (only real blocks of a placement count as pointing at it). */
@@ -293,6 +490,21 @@ public final class DevHooks {
         Formwork.LOG.info("dev: patterns set up: {}", sp.level().getBlockEntity(wap.south()));
     }
 
+    private static void addChestMachine(ServerPlayer sp) {
+        var src = sp.createCommandSourceStack().withSuppressedOutput().withPermission(4);
+        sp.server.getCommands().performPrefixedCommand(src, "setblock " + wap.getX() + " " + wap.getY() + " " + (wap.getZ() + 2) + " minecraft:chest");
+    }
+
+    /** Hands finished glass and casing back to the running crafting job, as a machine's output would arrive. */
+    private static void machineOutput(ServerPlayer sp, int glass, int casing) {
+        var grid = dev.sylviromi.formwork.ae2.AeLink.grid(sp, sp.getMainHandItem());
+        if (grid == null) return;
+        var cs = (appeng.me.service.CraftingService) grid.getCraftingService();
+        long g = cs.insertIntoCpus(appeng.api.stacks.AEItemKey.of(reactorBlock("reactor_glass")), glass, appeng.api.config.Actionable.MODULATE);
+        long c = cs.insertIntoCpus(appeng.api.stacks.AEItemKey.of(reactorBlock("fission_reactor_casing")), casing, appeng.api.config.Actionable.MODULATE);
+        Formwork.LOG.info("dev: machine output accepted by the job: {} glass, {} casing", g, c);
+    }
+
     private static net.minecraft.world.item.Item reactorBlock(String name) {
         return ForgeRegistries.ITEMS.getValue(net.minecraft.resources.ResourceLocation.tryParse("mekanismgenerators:" + name));
     }
@@ -308,9 +520,8 @@ public final class DevHooks {
             return;
         }
         var inv = grid.getStorageService().getInventory();
-        long glass = inv.insert(appeng.api.stacks.AEItemKey.of(reactorBlock("reactor_glass")), 146, appeng.api.config.Actionable.MODULATE, appeng.api.networking.security.IActionSource.empty());
-        long casing = inv.insert(appeng.api.stacks.AEItemKey.of(reactorBlock("fission_reactor_casing")), 68, appeng.api.config.Actionable.MODULATE, appeng.api.networking.security.IActionSource.empty());
-        Formwork.LOG.info("dev: stocked {} glass, {} casing", glass, casing);
+        long cobble = inv.insert(appeng.api.stacks.AEItemKey.of(net.minecraft.world.item.Items.COBBLESTONE), 1000, appeng.api.config.Actionable.MODULATE, appeng.api.networking.security.IActionSource.empty());
+        Formwork.LOG.info("dev: stocked {} cobblestone", cobble);
     }
 
     /** AE2's Back (and Start) return through the host. */
@@ -359,7 +570,59 @@ public final class DevHooks {
                 all.stream().map(r -> Selection.load(r.selection()).entry() + "@" + r.target()).toList(), blocks, speed, item);
     }
 
+    /** Starts (or with null stops) capturing every rendered frame: frame_<name>_NNNNN.png plus frames_<name>.txt with each frame's game time. */
+    private static void record(String name) {
+        recording = name;
+        recFrames = 0;
+        emptySince = -1;
+        if (name != null) {
+            try {
+                java.nio.file.Files.deleteIfExists(java.nio.file.Path.of(Minecraft.getInstance().gameDirectory.getPath(), "screenshots", "frames_" + name + ".txt"));
+            } catch (java.io.IOException ignored) {
+            }
+        }
+    }
+
+    @SubscribeEvent
+    public static void onRenderFrame(TickEvent.RenderTickEvent e) {
+        Minecraft mc = Minecraft.getInstance();
+        if (!ON || recording == null || e.phase != TickEvent.Phase.END || mc.level == null) return;
+        // a dismantle clip ends 70 ticks after the last placement is gone
+        if (recording.equals("dismantle") && ClientData.placements.isEmpty()) {
+            if (emptySince < 0) emptySince = mc.level.getGameTime();
+            else if (mc.level.getGameTime() - emptySince > 70) {
+                record(null);
+                return;
+            }
+        }
+        String name = "frame_" + recording + "_" + String.format("%05d", recFrames++);
+        double time = mc.level.getGameTime() + mc.getPartialTick();
+        shot(mc, name);
+        try {
+            java.nio.file.Files.writeString(java.nio.file.Path.of(mc.gameDirectory.getPath(), "screenshots", "frames_" + recording + ".txt"),
+                    name + " " + time + "\n", java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+        } catch (java.io.IOException ex) {
+            Formwork.LOG.warn("dev: frame log: {}", ex.toString());
+        }
+    }
+
+    @SubscribeEvent
+    public static void onServerTick(TickEvent.ServerTickEvent e) throws InterruptedException {
+        if (ON && SLOW > 1 && e.phase == TickEvent.Phase.END) Thread.sleep(50L * (SLOW - 1));
+    }
+
+    private static void slowClient(Minecraft mc) {
+        try {
+            Object timer = net.minecraftforge.fml.util.ObfuscationReflectionHelper.getPrivateValue(Minecraft.class, mc, "f_90991_");
+            net.minecraftforge.fml.util.ObfuscationReflectionHelper.setPrivateValue(net.minecraft.client.Timer.class, (net.minecraft.client.Timer) timer, 50f * SLOW, "f_92521_");
+        } catch (RuntimeException ex) {
+            Formwork.LOG.warn("dev: cannot slow the client: {}", ex.toString());
+        }
+    }
+
     private static void shot(Minecraft mc, String name) {
-        Screenshot.grab(mc.gameDirectory, "formwork_" + name + ".png", mc.getMainRenderTarget(), msg -> Formwork.LOG.info("dev screenshot: {}", msg.getString()));
+        Screenshot.grab(mc.gameDirectory, name.startsWith("frame_") ? name + ".png" : "formwork_" + name + ".png", mc.getMainRenderTarget(), msg -> {
+            if (!name.startsWith("frame_")) Formwork.LOG.info("dev screenshot: {}", msg.getString());
+        });
     }
 }

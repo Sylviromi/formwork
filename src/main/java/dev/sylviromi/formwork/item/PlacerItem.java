@@ -60,10 +60,10 @@ public class PlacerItem extends Item {
     }
 
     // ---- placement settings: anchor, offset, rotation, mode. Same tag on both sides; the client sends it with Net.SetPlacement ----
-    public static final String ANCHOR = "anchor", ANCHOR_FACING = "anchorFacing", OFFSET = "offset", ROTATION = "rotation";
+    public static final String ANCHOR = "anchor", ANCHOR_FACING = "anchorFacing", OFFSET = "offset", ROTATION = "rotation", MIRROR = "mirror";
     public static final int MAX_OFFSET = 64, MAX_ANCHOR_DISTANCE = 128;
 
-    public record Placement(BlockPos target, Direction facing) {
+    public record Placement(BlockPos target, Direction facing, boolean mirror) {
     }
 
     /** How far the tool aims when placing (dismantling and editing too). */
@@ -88,7 +88,7 @@ public class PlacerItem extends Item {
         if (base == null && hit == null) return null;
         if (base == null) base = Resolver.centerFor(fp, target(level, hit), look, facing); // the look only decides which side it extends to
         int[] o = offset(tool);
-        return new Placement(base.offset(o[0], o[1], o[2]), facing);
+        return new Placement(base.offset(o[0], o[1], o[2]), facing, mirror(tool));
     }
 
     @Nullable
@@ -105,6 +105,10 @@ public class PlacerItem extends Item {
         return tool.getTag() == null ? 0 : tool.getTag().getInt(ROTATION);
     }
 
+    public static boolean mirror(ItemStack tool) {
+        return tool.getTag() != null && tool.getTag().getBoolean(MIRROR);
+    }
+
     /** The placement settings as one tag (what the client edits and sends). */
     public static CompoundTag placementTag(ItemStack tool) {
         CompoundTag out = new CompoundTag();
@@ -115,6 +119,7 @@ public class PlacerItem extends Item {
         }
         out.putIntArray(OFFSET, offset(tool));
         out.putInt(ROTATION, rotation(tool));
+        out.putBoolean(MIRROR, mirror(tool));
         return out;
     }
 
@@ -143,6 +148,7 @@ public class PlacerItem extends Item {
         for (int i = 0; i < 3 && o.length == 3; i++) clamped[i] = Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, o[i]));
         t.putIntArray(OFFSET, clamped);
         t.putInt(ROTATION, Math.floorMod(in.getInt(ROTATION), 4));
+        t.putBoolean(MIRROR, in.getBoolean(MIRROR));
     }
 
     /** Places at the current placement; aims with the long ray like the client's ghost. */
@@ -159,7 +165,7 @@ public class PlacerItem extends Item {
             player.displayClientMessage(Component.translatable("formwork.msg.too_far").withStyle(ChatFormatting.RED), true);
             return;
         }
-        Placer.place(player, tool, p.target(), p.facing(), a.skipBlocked());
+        Placer.place(player, tool, p.target(), p.facing(), p.mirror(), a.skipBlocked());
     }
 
     // ---- dismantle: hold use on a placed multiblock, like breaking a block ----

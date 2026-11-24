@@ -49,6 +49,8 @@ public class Formwork {
         MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerChangedDimensionEvent e) -> { if (e.getEntity() instanceof ServerPlayer p) Net.syncPlacements(p); });
         MinecraftForge.EVENT_BUS.addListener((RegisterCommandsEvent e) -> PlaceCommand.register(e.getDispatcher()));
         MinecraftForge.EVENT_BUS.addListener(dev.sylviromi.formwork.build.Updater::onServerTick);
+        MinecraftForge.EVENT_BUS.addListener(dev.sylviromi.formwork.build.Animator::onServerTick);
+        MinecraftForge.EVENT_BUS.addListener(dev.sylviromi.formwork.build.Animator::finishAll);
         if (AE2) MinecraftForge.EVENT_BUS.addListener(AeLink::onServerTick);
     }
 

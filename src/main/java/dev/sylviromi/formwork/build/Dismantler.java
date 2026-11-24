@@ -1,5 +1,6 @@
 package dev.sylviromi.formwork.build;
 
+import dev.sylviromi.formwork.net.Net;
 import dev.sylviromi.formwork.Formwork;
 import dev.sylviromi.formwork.ae2.AeLink;
 import dev.sylviromi.formwork.structure.BlockSpec;
@@ -32,7 +33,7 @@ public final class Dismantler {
     public static Map<BlockPos, Resolver.Placed> blocks(Catalog catalog, Placements.Rec rec) {
         Map<BlockPos, BlockSpec> specs = Resolver.specs(catalog, Selection.load(rec.selection()));
         if (specs == null) return null;
-        Map<BlockPos, Resolver.Placed> out = Resolver.world(specs, rec.target(), rec.facing());
+        Map<BlockPos, Resolver.Placed> out = Resolver.world(specs, rec.target(), rec.facing(), rec.mirror());
         out.keySet().removeAll(rec.skipped());
         return out;
     }
@@ -45,26 +46,40 @@ public final class Dismantler {
             fail(player, "formwork.msg.invalid_selection");
             return;
         }
-        List<ItemStack> drops = new ArrayList<>();
-        int removed = 0, kept = 0;
         // top-down, so blocks resting on others (torches, rotors) go first
         var order = new ArrayList<>(placed.entrySet());
         order.sort(Comparator.comparingInt((Map.Entry<BlockPos, Resolver.Placed> e) -> e.getKey().getY()).reversed());
+        List<BlockPos> take = new ArrayList<>();
+        int kept = 0;
         for (var e : order) {
-            BlockPos pos = e.getKey();
-            BlockState state = level.getBlockState(pos);
+            BlockState state = level.getBlockState(e.getKey());
             if (state.getBlock() != e.getValue().state().getBlock()) continue; // replaced or removed by hand: not ours any more
-            if (!canTake(player, level, pos, state)) {
-                kept++;
-                continue;
-            }
-            take(player, level, pos, state, drops);
-            removed++;
+            if (canTake(player, level, e.getKey(), state)) take.add(e.getKey());
+            else kept++;
         }
         // keep the record while protected blocks remain, so the player can come back
         if (kept == 0) placements.remove(level, rec.id());
-        giveBack(player, tool, drops);
-        player.displayClientMessage(Component.translatable("formwork.msg.dismantled", removed), true);
+        List<ItemStack> drops = new ArrayList<>();
+        int[] removed = new int[1];
+        UUID id = player.getUUID();
+        Animator.run(take, false, 0, pos -> {
+            BlockState state = level.getBlockState(pos);
+            if (state.getBlock() != placed.get(pos).state().getBlock()) return;
+            ServerPlayer who = level.getServer().getPlayerList().getPlayer(id);
+            if (who == null) return;
+            take(who, level, pos, state, drops);
+            removed[0]++;
+        }, batch -> {
+            Net.pop(level, false, batch, level::getBlockState);
+        }, () -> true, () -> {
+            ServerPlayer who = level.getServer().getPlayerList().getPlayer(id);
+            if (who == null) {
+                drops.forEach(d -> Block.popResource(level, take.get(take.size() - 1), d)); // left the game meanwhile
+                return;
+            }
+            giveBack(who, tool, drops);
+            who.displayClientMessage(Component.translatable("formwork.msg.dismantled", removed[0]), true);
+        });
     }
 
     /** Whether the player may break this block here (claims, unbreakable blocks, other mods' break events). */

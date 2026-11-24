@@ -88,5 +88,9 @@
   "formwork.gui.in_me": "ME: %s",
   "formwork.command.not_in_set": "O bloco não está em nenhum conjunto de variantes: %s",
   "formwork.command.unknown": "Entrada desconhecida ou variantes inválidas: %s",
-  "formwork.command.placed": "%s blocos de %s colocados"
+  "formwork.command.placed": "%s blocos de %s colocados",
+  "formwork.gui.mirror_tip": "Espelhar esquerda e direita (M)",
+  "formwork.gui.favourite": "Favorito",
+  "formwork.jei.hint": "Clique: parar ou girar",
+  "formwork.jei.materials": "%s materiais"
 }

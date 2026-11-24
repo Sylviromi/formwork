@@ -39,7 +39,7 @@ public final class Updater {
         Map<BlockPos, Resolver.Placed> old = Dismantler.blocks(Catalog.server, rec);
         Map<BlockPos, BlockSpec> specs = Resolver.specs(Catalog.server, sel);
         if (old == null || specs == null || specs.isEmpty()) return null;
-        Map<BlockPos, Resolver.Placed> neu = Resolver.world(specs, rec.target(), rec.facing());
+        Map<BlockPos, Resolver.Placed> neu = Resolver.world(specs, rec.target(), rec.facing(), rec.mirror());
         neu.keySet().removeAll(rec.skipped()); // what was in the way at placement stays untouched
         Map<BlockPos, BlockState> remove = new LinkedHashMap<>();
         old.forEach((pos, b) -> {
@@ -141,7 +141,7 @@ public final class Updater {
         Dismantler.giveBack(player, j.tool(), drops);
         Placements placements = Placements.of(j.level());
         placements.remove(j.level(), j.rec().id());
-        placements.add(j.level(), Placements.record(plan.all(), j.sel().save(), j.rec().target(), j.rec().facing(), j.rec().owner(), j.rec().skipped()));
+        placements.add(j.level(), Placements.record(plan.all(), j.sel().save(), j.rec().target(), j.rec().facing(), j.rec().mirror(), j.rec().owner(), j.rec().skipped()));
         player.displayClientMessage(Component.translatable("formwork.msg.updated", plan.remove().size(), plan.place().size()), true);
     }
 

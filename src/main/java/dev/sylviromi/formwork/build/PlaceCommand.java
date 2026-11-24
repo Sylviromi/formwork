@@ -61,10 +61,10 @@ public final class PlaceCommand {
             c.getSource().sendFailure(Component.translatable("formwork.command.unknown", entry));
             return 0;
         }
-        var blocks = Resolver.world(specs, pos, Direction.NORTH);
+        var blocks = Resolver.world(specs, pos, Direction.NORTH, false);
         var level = c.getSource().getLevel();
         Placer.put(level, blocks, null);
-        Placements.of(level).add(level, Placements.record(blocks, sel.save(), pos, Direction.NORTH, null));
+        Placements.of(level).add(level, Placements.record(blocks, sel.save(), pos, Direction.NORTH, false, null));
         c.getSource().sendSuccess(() -> Component.translatable("formwork.command.placed", blocks.size(), entry), true);
         return blocks.size();
     }

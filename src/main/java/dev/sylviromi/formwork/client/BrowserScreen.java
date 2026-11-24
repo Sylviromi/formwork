@@ -27,6 +27,7 @@ public class BrowserScreen extends Screen {
     /** Cards: a thumbnail, then the name and the category line, INSET from the card's edges, PAD apart. */
     private static final int CAT_W = 112, CARD_W = 112, THUMB_H = 62, LINE = 9, CARD_H = INSET + THUMB_H + INSET + LINE + GAP + LINE + INSET, MAX_THUMB_BLOCKS = 5000;
     private static final String ALL = "";
+    private static final int STAR = 9;
 
     /** What a card shows; blocks: the first member's default blocks (thumbnail). */
     private record Info(Catalog.Entry entry, String name, String category, String subtitle, Map<BlockPos, BlockState> blocks, Bounds bounds, ItemStack icon) {
@@ -120,7 +121,8 @@ public class BrowserScreen extends Screen {
         if (!category.equals(ALL) && !cats.containsKey(category)) category = ALL;
         String q = query.toLowerCase(Locale.ROOT);
         shown = infos().stream().filter(i -> category.equals(ALL) || i.category().equals(category))
-                .filter(i -> q.isEmpty() || i.name().toLowerCase(Locale.ROOT).contains(q) || i.entry().key().toLowerCase(Locale.ROOT).contains(q)).toList();
+                .filter(i -> q.isEmpty() || i.name().toLowerCase(Locale.ROOT).contains(q) || i.entry().key().toLowerCase(Locale.ROOT).contains(q))
+                .sorted(Comparator.comparing((Info i) -> !Memory.favourite(i.entry().key()))).toList();
     }
 
     void openForDev(String key) {
@@ -128,6 +130,8 @@ public class BrowserScreen extends Screen {
     }
 
     // ---------- geometry ----------
+
+    private static int starX(int cardX, int cardW) { return cardX + cardW - INSET - STAR - 2; }
 
     private int top() { return y0 + PAD + CTRL + PAD; }
     private int bottom() { return y0 + h - PAD; }
@@ -193,6 +197,9 @@ public class BrowserScreen extends Screen {
             } else if (!info.icon().isEmpty()) {
                 g.renderItem(info.icon(), tx + tw / 2 - 8, ty + THUMB_H / 2 - 8);
             }
+            boolean fav = Memory.favourite(key), overStar = in(mx, my, starX(x, cw), ty + 2, STAR, STAR) && my >= top && my < bottom;
+            if (fav || over) g.drawString(font, "\u2605", starX(x, cw), ty + 2, fav ? YELLOW : overStar ? TEXT : DIM, false);
+            if (overStar) setTooltipForNextRenderPass(Component.translatable("formwork.gui.favourite"));
             g.drawString(font, font.plainSubstrByWidth(info.name(), tw), tx, line1, selected ? ACCENT : TEXT, false);
             int sw = font.width(info.subtitle());
             g.drawString(font, font.plainSubstrByWidth(info.category(), tw - sw - PAD), tx, line2, DIM, false);
@@ -220,6 +227,12 @@ public class BrowserScreen extends Screen {
             int col = (int) ((mx - gridX()) / (cw + PAD)), row = (int) ((my - top() + scroll) / (CARD_H + PAD));
             int i = row * cols + col;
             if (col < cols && i >= 0 && i < shown.size()) {
+                int cx = gridX() + col * (cw + PAD), cy = top() + row * (CARD_H + PAD) - scroll;
+                if (in(mx, my, starX(cx, cw), cy + INSET + 2, STAR, STAR)) {
+                    Memory.toggleFavourite(shown.get(i).entry().key());
+                    refilter();
+                    return true;
+                }
                 minecraft.setScreen(new EditorScreen(shown.get(i).entry()));
                 return true;
             }

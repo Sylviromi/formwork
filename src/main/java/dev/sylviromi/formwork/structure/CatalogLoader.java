@@ -11,10 +11,13 @@ import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.io.InputStream;
 import java.io.Reader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -43,22 +46,15 @@ public class CatalogLoader extends SimplePreparableReloadListener<Catalog> {
                 String path = rl.getPath().substring(folder.length() + 1, rl.getPath().length() - 4);
                 String id = rl.getNamespace() + ":" + path;
                 try (InputStream in = e.getValue().open()) {
-                    CompoundTag tag = NbtIo.readCompressed(in);
-                    Blueprint bp = Blueprint.fromStructureNbt(id, tag);
-                    String missing = bp.blocks().values().stream().map(BlockSpec::id)
-                            .filter(b -> !isBlock(b)).findFirst().orElse(null);
-                    if (missing != null || bp.blocks().isEmpty()) {
-                        skipped++;
-                        Formwork.LOG.debug("Skipping blueprint {}: unknown block {}", id, missing);
-                        continue;
-                    }
-                    catalog.addBlueprint(bp);
-                    if (folder.equals(LEGACY)) legacy++;
+                    if (read(catalog, id, in)) {
+                        if (folder.equals(LEGACY)) legacy++;
+                    } else skipped++;
                 } catch (Exception ex) {
                     Formwork.LOG.warn("Could not read blueprint {}", rl, ex);
                 }
             }
         }
+        skipped += readNuclearCraft(catalog);
         for (Map.Entry<ResourceLocation, Resource> e : rm.listResources("formwork/variants", rl -> rl.getPath().endsWith(".json")).entrySet()) {
             ResourceLocation rl = e.getKey();
             String id = rl.getNamespace() + ":" + rl.getPath().substring("formwork/variants/".length(), rl.getPath().length() - 5);
@@ -84,6 +80,39 @@ public class CatalogLoader extends SimplePreparableReloadListener<Catalog> {
         if (legacy > 0) Formwork.LOG.info("{} of them from mbtool_structures (Multi Builder Tool's folder, read for compatibility for now; "
                 + "move them to data/<namespace>/formwork/structures)", legacy);
         return catalog;
+    }
+
+    private static boolean read(Catalog catalog, String id, InputStream in) throws java.io.IOException {
+        Blueprint bp = Blueprint.fromStructureNbt(id, NbtIo.readCompressed(in));
+        String missing = bp.blocks().values().stream().map(BlockSpec::id).filter(b -> !isBlock(b)).findFirst().orElse(null);
+        if (missing != null || bp.blocks().isEmpty()) {
+            Formwork.LOG.debug("Skipping blueprint {}: unknown block {}", id, missing);
+            return false;
+        }
+        catalog.addBlueprint(bp);
+        return true;
+    }
+
+    /** NuclearCraft ships its multiblocks as ponder scenes in assets/, which a data pack cannot see, so they are read from its jar. Returns how many were skipped. */
+    private static int readNuclearCraft(Catalog catalog) {
+        var info = ModList.get().getModFileById("nuclearcraft");
+        if (info == null) return 0;
+        int skipped = 0;
+        Path dir = info.getFile().findResource("assets", "nuclearcraft", "ponder");
+        if (!Files.isDirectory(dir)) return 0;
+        try (var files = Files.list(dir)) {
+            for (Path f : (Iterable<Path>) files.filter(f -> f.toString().endsWith(".nbt"))::iterator) {
+                String name = f.getFileName().toString();
+                try (InputStream in = Files.newInputStream(f)) {
+                    if (!read(catalog, "nuclearcraft:" + name.substring(0, name.length() - 4), in)) skipped++;
+                } catch (Exception ex) {
+                    Formwork.LOG.warn("Could not read NuclearCraft structure {}", name, ex);
+                }
+            }
+        } catch (Exception ex) {
+            Formwork.LOG.warn("Could not list NuclearCraft structures", ex);
+        }
+        return skipped;
     }
 
     private static boolean isBlock(String id) {

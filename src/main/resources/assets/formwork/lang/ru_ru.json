@@ -88,5 +88,9 @@
   "formwork.gui.in_me": "МЭ: %s",
   "formwork.command.not_in_set": "Блок не входит ни в один набор вариантов: %s",
   "formwork.command.unknown": "Неизвестная запись или неверные варианты: %s",
-  "formwork.command.placed": "Поставлено блоков: %s (%s)"
+  "formwork.command.placed": "Поставлено блоков: %s (%s)",
+  "formwork.gui.mirror_tip": "Отразить слева направо (M)",
+  "formwork.gui.favourite": "Избранное",
+  "formwork.jei.hint": "Клик: остановить или вращать",
+  "formwork.jei.materials": "Материалов: %s"
 }
