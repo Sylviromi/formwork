@@ -64,7 +64,8 @@ public final class DevHooks {
     /**
      * browser, editor (Mekanism tabs, void miner variants), mm (Masterful Machinery check and picker), placement (the card and
      * the ghost), mirror (the card with mirror on), place, update (edit a placed miner, timed and cancelled), dismantle (hold
-     * use), animation (place and dismantle sweeps mid-way), me (access point range), craft (AE2 craft screens, craft all), jei.
+     * use), animation (place and dismantle sweeps mid-way), me (access point range), craft (AE2 craft screens, craft all), jei,
+     * nc (NuclearCraft structures placed, controllers logged after validating; needs copyPackMods).
      */
     private static final Map<String, Runnable> GROUPS = new LinkedHashMap<>();
 
@@ -120,6 +121,18 @@ public final class DevHooks {
             step(t += 5, null, mc -> setMirror(true));
             step(t += 15, "mirror_on", null);
             step(t += 5, null, mc -> mc.setScreen(null));
+        });
+        GROUPS.put("nc", () -> {
+            for (int i = 0; i < 4; i++) {
+                int n = i;
+                step(t += 20, null, mc -> onServer(mc, sp -> placeNuclearCraft(sp, n)));
+            }
+            step(t += 60, null, mc -> onServer(mc, DevHooks::reportNuclearCraft));
+            step(t += 300, null, mc -> onServer(mc, sp -> {
+                kickNuclearCraft(sp);
+                Formwork.LOG.info("dev: nc: kicked");
+            }));
+            step(t += 200, null, mc -> onServer(mc, DevHooks::reportNuclearCraft));
         });
         GROUPS.put("place", () -> {
             needMiner();
@@ -409,6 +422,57 @@ public final class DevHooks {
         Placements.of(sp.serverLevel()).add(sp.serverLevel(), Placements.record(blocks, sel.save(), target, f, false, sp.getUUID()));
         log(sp, "placed at " + target + " facing " + f);
         mc.execute(() -> mc.player.setXRot(15));
+    }
+
+    private static final String[] NC = {"msr", "fission_reactor", "heat_exchanger", "turbine"};
+
+    /** Server: the nth NuclearCraft structure at its default size, 40 blocks apart in a row, on cleared ground. */
+    private static void placeNuclearCraft(ServerPlayer sp, int n) {
+        String id = "formwork:gen/nuclearcraft_" + NC[n];
+        Direction f = Direction.NORTH;
+        Selection sel = new Selection(id, new int[0], Map.of());
+        var specs = Resolver.specs(Catalog.server, sel);
+        if (specs == null) {
+            Formwork.LOG.warn("dev: nc: no structure {}", id);
+            return;
+        }
+        BlockPos at = sp.blockPosition().offset(n * 40 - 60, 0, -30);
+        var src = sp.createCommandSourceStack().withSuppressedOutput().withPermission(4);
+        sp.server.getCommands().performPrefixedCommand(src, "fill " + (at.getX() - 20) + " " + at.getY() + " " + (at.getZ() - 20) + " " + (at.getX() + 20) + " " + (at.getY() + 25) + " " + (at.getZ() + 20) + " air");
+        BlockPos target = Resolver.centerFor(Resolver.Footprint.of(specs.keySet()), at, f, f);
+        var blocks = Resolver.world(specs, target, f, false);
+        Placer.put(sp.serverLevel(), blocks, sp);
+        Placements.of(sp.serverLevel()).add(sp.serverLevel(), Placements.record(blocks, sel.save(), target, f, false, sp.getUUID()));
+        Formwork.LOG.info("dev: nc: placed {} at {} ({} blocks)", id, target, blocks.size());
+    }
+
+    /** Server: asks every NuclearCraft controller to validate again (invalidateCache, by reflection: the mod is runtime only). */
+    private static void kickNuclearCraft(ServerPlayer sp) {
+        ServerLevel level = sp.serverLevel();
+        for (var r : Placements.of(level).all())
+            for (BlockPos p : Placements.positions(r, Catalog.server)) {
+                var be = level.getBlockEntity(p);
+                if (be == null || !level.getBlockState(p).getBlock().getDescriptionId().contains("controller")) continue;
+                try {
+                    be.getClass().getMethod("invalidateCache").invoke(be);
+                } catch (ReflectiveOperationException e) {
+                    Formwork.LOG.warn("dev: nc: cannot kick {}", p, e);
+                }
+            }
+    }
+
+    /** Server: every block entity of the placed structures whose data mentions forming, one log line each. */
+    private static void reportNuclearCraft(ServerPlayer sp) {
+        ServerLevel level = sp.serverLevel();
+        for (var r : Placements.of(level).all())
+            for (BlockPos p : Placements.positions(r, Catalog.server)) {
+                var be = level.getBlockEntity(p);
+                if (be == null || !level.getBlockState(p).getBlock().getDescriptionId().contains("controller")) continue;
+                var info = be.saveWithoutMetadata().getCompound("Info");
+                Formwork.LOG.info("dev: nc: controller {} at {}: casing {} internal {} validations {} size {}x{}x{} error {} formed-ish {}", level.getBlockState(p).getBlock().getDescriptionId(), p,
+                        info.getBoolean("isCasingValid"), info.getBoolean("isInternalValid"), info.getLong("validationsCounter"), info.getInt("width"), info.getInt("height"), info.getInt("depth"),
+                        BlockPos.of(info.getLong("erroredBlock")), info.getLong("multiblockTicksCounter"));
+            }
     }
 
     /** Server: the same miner placed the way a player does, so it appears as a sweep. */
