@@ -82,7 +82,7 @@ public final class Placements extends SavedData {
     /** How long dismantling (holding use) or an in-place update takes: 0.5 to 2 seconds by size. */
     public static int dismantleTicks(Rec r) {
         long volume = (long) r.box().getXSpan() * r.box().getYSpan() * r.box().getZSpan();
-        return (int) Math.max(10, Math.min(40, 10 + volume / 40));
+        return (int) Math.max(2, Math.round(Math.max(10, Math.min(40, 10 + volume / 40)) / dev.sylviromi.formwork.Config.DISMANTLE_SPEED.get()));
     }
 
     private static final Map<Rec, Set<BlockPos>> POSITIONS = Collections.synchronizedMap(new WeakHashMap<>());

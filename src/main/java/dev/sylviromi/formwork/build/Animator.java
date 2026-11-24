@@ -40,7 +40,8 @@ public final class Animator {
             this.done = done;
             TreeMap<Integer, List<BlockPos>> layers = new TreeMap<>(bottomUp ? Comparator.<Integer>naturalOrder() : Comparator.<Integer>reverseOrder());
             for (BlockPos p : order) layers.computeIfAbsent(p.getY(), y -> new ArrayList<>()).add(p);
-            int ticks = Math.max(MIN_TICKS, Math.min(MAX_TICKS, layers.size() * 2));
+            double speed = dev.sylviromi.formwork.Config.ANIMATION_SPEED.get();
+            int ticks = Math.max(1, (int) Math.round(Math.max(MIN_TICKS, Math.min(MAX_TICKS, layers.size() * 2)) / speed));
             List<List<BlockPos>> out = new ArrayList<>();
             for (int i = 0; i < ticks; i++) out.add(new ArrayList<>());
             int rank = 0;

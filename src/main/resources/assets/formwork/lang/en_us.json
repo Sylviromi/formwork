@@ -12,6 +12,8 @@
   "formwork.msg.placed": "Placed %s blocks",
   "formwork.config.title": "Formwork",
   "formwork.config.animations": "Animations: %s",
+  "formwork.config.animation_speed": "Animation speed: %s",
+  "formwork.config.dismantle_speed": "Dismantle speed: %s",
   "formwork.gui.tier": "Tier %s / %s",
   "formwork.gui.blocks": "%s blocks",
   "formwork.gui.me.NO_AE2": "AE2 not installed",

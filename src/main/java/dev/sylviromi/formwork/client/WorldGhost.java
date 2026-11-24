@@ -143,7 +143,7 @@ public final class WorldGhost {
         ps.translate(t.getX() - cam.x, t.getY() - cam.y, t.getZ() - cam.z);
         if (placedMesh != null) placedMesh.draw(ps.last().pose(), event.getProjectionMatrix(), r, g, b, alpha);
         MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
-        brackets(ps, buffers.getBuffer(RenderType.lines()), box.inflate(0.004), r, g, b);
+        brackets(ps, buffers.getBuffer(RenderType.lines()), box.inflate(0.1 + 0.05 * Math.sin(time * 0.7)), r, g, b);
         buffers.endBatch(RenderType.lines());
         ps.popPose();
     }

@@ -22,7 +22,18 @@ final class ConfigScreen extends Screen {
             Config.SPEC.save();
             b.setMessage(label());
         }).bounds(width / 2 - 100, height / 2 - 10, 200, 20).build());
-        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose()).bounds(width / 2 - 100, height / 2 + 20, 200, 20).build());
+        addRenderableWidget(speed(Config.ANIMATION_SPEED, "formwork.config.animation_speed", width / 2 - 100, height / 2 + 14));
+        addRenderableWidget(speed(Config.DISMANTLE_SPEED, "formwork.config.dismantle_speed", width / 2 - 100, height / 2 + 38));
+        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose()).bounds(width / 2 - 100, height / 2 + 70, 200, 20).build());
+    }
+
+    private static net.minecraft.client.gui.components.AbstractSliderButton speed(net.minecraftforge.common.ForgeConfigSpec.DoubleValue v, String key, int x, int y) {
+        return new net.minecraft.client.gui.components.AbstractSliderButton(x, y, 200, 20, Component.empty(), (Math.log(v.get()) / Math.log(2) + 2) / 4) {
+            { updateMessage(); }
+            private double value() { return Math.pow(2, this.value * 4 - 2); }
+            @Override protected void updateMessage() { setMessage(Component.translatable(key, String.format("%.2fx", value()))); }
+            @Override protected void applyValue() { v.set(Math.round(value() * 20) / 20.0); Config.SPEC.save(); }
+        };
     }
 
     private static Component label() {
