@@ -38,6 +38,7 @@ public class Formwork {
 
     public Formwork() {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
+        net.minecraftforge.fml.ModLoadingContext.get().registerConfig(net.minecraftforge.fml.config.ModConfig.Type.COMMON, Config.SPEC);
         ITEMS.register(modBus);
         modBus.addListener(this::setup);
         modBus.addListener((BuildCreativeModeTabContentsEvent e) -> {

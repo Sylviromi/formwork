@@ -100,6 +100,10 @@ public final class Placer {
 
     /** Like put, but as a sweep over a few ticks. Stops if alive turns false (the placement was dismantled meanwhile). */
     public static void putAnimated(ServerLevel level, Map<BlockPos, Resolver.Placed> blocks, ServerPlayer player, BooleanSupplier alive) {
+        if (!dev.sylviromi.formwork.Config.ANIMATIONS.get()) {
+            put(level, blocks, player);
+            return;
+        }
         UUID id = player.getUUID();
         // the sweep is only drawn; every block lands together when it ends, so a multiblock sees the finished structure once
         Animator.run(new ArrayList<>(blocks.keySet()), true, Net.GROW_TICKS, pos -> {

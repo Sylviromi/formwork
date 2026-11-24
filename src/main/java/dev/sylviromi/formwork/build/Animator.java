@@ -72,7 +72,8 @@ public final class Animator {
      * false; done runs after the last position.
      */
     public static void run(List<BlockPos> order, boolean bottomUp, int lag, Consumer<BlockPos> each, Consumer<List<BlockPos>> effect, BooleanSupplier alive, Runnable done) {
-        if (order.isEmpty()) {
+        if (order.isEmpty() || !dev.sylviromi.formwork.Config.ANIMATIONS.get()) {
+            order.forEach(each);
             done.run();
             return;
         }
