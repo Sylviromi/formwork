@@ -1,0 +1,8 @@
+{
+  "walls": true,
+  "blocks": [
+    "nuclearcraft:turbine_casing",
+    "nuclearcraft:turbine_glass",
+    "nuclearcraft:turbine_port"
+  ]
+}

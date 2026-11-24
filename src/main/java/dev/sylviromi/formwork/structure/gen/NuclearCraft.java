@@ -82,7 +82,7 @@ public final class NuclearCraft {
         public List<Param> params() {
             return List.of(Param.range("width", 5, 26, 7).named("gui.mekanism.width"), Param.range("height", 5, 26, 7).named("gui.mekanism.height"), Param.range("length", 5, 26, 7),
                     Param.toggle("glass", true).named("block.nuclearcraft.fission_reactor_glass"),
-                    new Param("heat_sink", 0, 1, 1, List.of("block.nuclearcraft.water_heat_sink", "block.nuclearcraft.active_water_heat_sink")));
+                    new Param("heat_sink", 0, 1, 0, List.of("block.nuclearcraft.water_heat_sink", "block.nuclearcraft.active_water_heat_sink")));
         }
 
         @Override

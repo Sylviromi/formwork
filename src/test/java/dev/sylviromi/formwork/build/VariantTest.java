@@ -115,4 +115,32 @@ class VariantTest {
         assertTrue(checks.stream().anyMatch(c -> c.set().id().endsWith("item_port_input") && c.required() == 0 && c.actual() == 1));
         assertTrue(Resolver.check(ports(), MM, slots, base).stream().allMatch(Resolver.Check::ok));
     }
+
+    private static Map<BlockPos, BlockSpec> build(dev.sylviromi.formwork.structure.gen.Generator g) {
+        return g.build(Resolver.clampedParams(g, new int[0]));
+    }
+
+    @Test
+    void shippedWallSetsGiveHatchSlotsOnGeneratedStructures() throws Exception {
+        Catalog c = new Catalog();
+        var dir = java.nio.file.Path.of("src/main/resources/data/formwork/formwork/variants");
+        try (var files = java.nio.file.Files.list(dir)) {
+            for (var f : files.toList()) {
+                var o = com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(f)).getAsJsonObject();
+                List<String> blocks = new java.util.ArrayList<>();
+                o.getAsJsonArray("blocks").forEach(e -> blocks.add(e.getAsString()));
+                String name = f.getFileName().toString().replace(".json", "");
+                c.addVariants(new VariantSet("formwork:" + name, blocks, o.has("match") ? o.get("match").getAsString() : "", 0, o.has("family") ? o.get("family").getAsString() : "", o.has("walls") && o.get("walls").getAsBoolean()));
+            }
+        }
+        var gens = Map.of("formwork:gen/mekanism_turbine", new dev.sylviromi.formwork.structure.gen.IndustrialTurbine().build(new int[]{1, 9, 3, 2, 1, 0}),
+                "formwork:gen/nuclearcraft_turbine", build(new dev.sylviromi.formwork.structure.gen.NuclearCraft.Turbine()),
+                "formwork:gen/nuclearcraft_msr", build(new dev.sylviromi.formwork.structure.gen.NuclearCraft.MoltenSaltReactor()));
+        gens.forEach((entry, base) -> {
+            var slots = Resolver.slots(c, entry, base);
+            long ports = base.entrySet().stream().filter(e -> e.getValue().id().matches(".*(valve|port)")).filter(e -> slots.containsKey(e.getKey())).count();
+            assertTrue(ports > 0, entry + " ports are slots");
+            assertTrue(slots.size() > ports, entry + " casing is a slot");
+        });
+    }
 }
