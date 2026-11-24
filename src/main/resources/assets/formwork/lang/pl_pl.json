@@ -90,6 +90,7 @@
   "formwork.command.unknown": "Nieznany wpis lub nieprawidłowe warianty: %s",
   "formwork.command.placed": "Postawiono bloków: %s (%s)",
   "formwork.gui.mirror_tip": "Odbij lewo-prawo (M)",
+  "formwork.gui.animate_tip": "Placement and dismantle animations",
   "formwork.gui.favourite": "Ulubione",
   "formwork.jei.hint": "Kliknij: zatrzymaj lub obracaj",
   "formwork.jei.materials": "Materiały: %s"

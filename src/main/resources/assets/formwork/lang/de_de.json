@@ -90,6 +90,7 @@
   "formwork.command.unknown": "Unbekannter Eintrag oder ungültige Varianten: %s",
   "formwork.command.placed": "%s Blöcke von %s platziert",
   "formwork.gui.mirror_tip": "Links und rechts spiegeln (M)",
+  "formwork.gui.animate_tip": "Placement and dismantle animations",
   "formwork.gui.favourite": "Favorit",
   "formwork.jei.hint": "Klick: anhalten oder drehen",
   "formwork.jei.materials": "%s Materialien"

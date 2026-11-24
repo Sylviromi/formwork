@@ -60,7 +60,7 @@ public class PlacerItem extends Item {
     }
 
     // ---- placement settings: anchor, offset, rotation, mode. Same tag on both sides; the client sends it with Net.SetPlacement ----
-    public static final String ANCHOR = "anchor", ANCHOR_FACING = "anchorFacing", OFFSET = "offset", ROTATION = "rotation", MIRROR = "mirror";
+    public static final String ANCHOR = "anchor", ANCHOR_FACING = "anchorFacing", OFFSET = "offset", ROTATION = "rotation", MIRROR = "mirror", NO_ANIMATION = "noAnimation";
     public static final int MAX_OFFSET = 64, MAX_ANCHOR_DISTANCE = 128;
 
     public record Placement(BlockPos target, Direction facing, boolean mirror) {
@@ -109,6 +109,10 @@ public class PlacerItem extends Item {
         return tool.getTag() != null && tool.getTag().getBoolean(MIRROR);
     }
 
+    public static boolean animate(ItemStack tool) {
+        return tool.getTag() == null || !tool.getTag().getBoolean(NO_ANIMATION);
+    }
+
     /** The placement settings as one tag (what the client edits and sends). */
     public static CompoundTag placementTag(ItemStack tool) {
         CompoundTag out = new CompoundTag();
@@ -120,6 +124,7 @@ public class PlacerItem extends Item {
         out.putIntArray(OFFSET, offset(tool));
         out.putInt(ROTATION, rotation(tool));
         out.putBoolean(MIRROR, mirror(tool));
+        out.putBoolean(NO_ANIMATION, !animate(tool));
         return out;
     }
 
@@ -149,6 +154,7 @@ public class PlacerItem extends Item {
         t.putIntArray(OFFSET, clamped);
         t.putInt(ROTATION, Math.floorMod(in.getInt(ROTATION), 4));
         t.putBoolean(MIRROR, in.getBoolean(MIRROR));
+        t.putBoolean(NO_ANIMATION, in.getBoolean(NO_ANIMATION));
     }
 
     /** Places at the current placement; aims with the long ray like the client's ghost. */
