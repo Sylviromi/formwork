@@ -66,6 +66,7 @@
   "formwork.gui.pick_tip": "Haz clic para editar este bloque",
   "formwork.gui.pick_default": "El bloque del plano",
   "formwork.gui.pick_hint": "Haz clic en un bloque de la vista para cambiarlo",
+  "formwork.gui.reset_variants": "Reset to original",
   "formwork.gui.check_ok": "Se formará: el número de puertos coincide",
   "formwork.gui.check_bad": "No se formará:",
   "formwork.gui.changed": "%s / %s cambiados",

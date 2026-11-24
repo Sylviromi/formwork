@@ -66,6 +66,7 @@
   "formwork.gui.pick_tip": "点击以编辑此方块",
   "formwork.gui.pick_default": "蓝图中的方块",
   "formwork.gui.pick_hint": "点击视图中的方块以更换",
+  "formwork.gui.reset_variants": "Reset to original",
   "formwork.gui.check_ok": "可以成型：端口数量相符",
   "formwork.gui.check_bad": "无法成型：",
   "formwork.gui.changed": "已更改 %s / %s",

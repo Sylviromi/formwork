@@ -66,6 +66,7 @@
   "formwork.gui.pick_tip": "Нажмите, чтобы изменить этот блок",
   "formwork.gui.pick_default": "Блок из чертежа",
   "formwork.gui.pick_hint": "Нажмите на блок в окне, чтобы его заменить",
+  "formwork.gui.reset_variants": "Reset to original",
   "formwork.gui.check_ok": "Соберётся: число портов совпадает",
   "formwork.gui.check_bad": "Не соберётся:",
   "formwork.gui.changed": "Изменено: %s / %s",

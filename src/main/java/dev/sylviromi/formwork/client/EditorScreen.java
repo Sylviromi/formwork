@@ -375,6 +375,11 @@ public class EditorScreen extends Screen {
                     selectedLines(out);
                     break;
                 }
+                checks.stream().filter(c -> !c.ok()).forEach(c -> out.add(text(Component.literal(setName(c.set()).getString() + " " + c.actual() + "/" + c.required()), RED)));
+                if (!overrides.isEmpty()) out.add(actionLine(Component.translatable("formwork.gui.reset_variants"), () -> {
+                    overrides.clear();
+                    rebuild(true);
+                }));
                 out.add(text(Component.translatable("formwork.gui.pick_hint"), DIM));
                 slots().forEach((set, n) -> out.add(setRow(set, n)));
             }
@@ -541,8 +546,7 @@ public class EditorScreen extends Screen {
         // MM-style families: whether the machine will form, always in sight
         if (!checks.isEmpty()) {
             String status = problems() == 0 ? Component.translatable("formwork.gui.check_ok").getString()
-                    : Component.translatable("formwork.gui.check_bad").getString() + "  " + String.join(", ", checks.stream().filter(c -> !c.ok())
-                    .map(c -> setName(c.set()).getString() + " " + c.actual() + "/" + c.required()).toList());
+                    : Component.translatable("formwork.gui.check_bad").getString();
             status = font.plainSubstrByWidth(status, sliderX() - vx - 2 * INSET - 2 * PAD);
             int sw = font.width(status) + 2 * PAD, sy = footY() - GAP - CTRL;
             g.fill(vx + INSET, sy, vx + INSET + sw, sy + CTRL, problems() == 0 ? 0xD0153A26 : 0xD04A1818);

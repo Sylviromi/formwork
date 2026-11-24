@@ -66,6 +66,7 @@
   "formwork.gui.pick_tip": "Clicca per modificare questo blocco",
   "formwork.gui.pick_default": "Il blocco del progetto",
   "formwork.gui.pick_hint": "Clicca un blocco nella vista per cambiarlo",
+  "formwork.gui.reset_variants": "Reset to original",
   "formwork.gui.check_ok": "Si formerà: il numero di porte corrisponde",
   "formwork.gui.check_bad": "Non si formerà:",
   "formwork.gui.changed": "%s / %s modificati",
