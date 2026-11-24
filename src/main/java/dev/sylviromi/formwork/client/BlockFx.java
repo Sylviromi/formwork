@@ -21,6 +21,20 @@ import java.util.List;
 public final class BlockFx {
     private static final int SHRINK_TICKS = 8;
     private static final List<Fx> ACTIVE = new ArrayList<>();
+    /** Placed blocks that finished growing but are not in the world yet (they land together at the end): drawn as one mesh per batch. */
+    private static final List<Held> HELD = new ArrayList<>();
+
+    private static final class Held {
+        final BlockPos origin;
+        final java.util.Map<BlockPos, BlockState> blocks = new java.util.HashMap<>();
+        final long shownAt;
+        StructureMesh mesh;
+
+        Held(BlockPos origin, long shownAt) {
+            this.origin = origin;
+            this.shownAt = shownAt;
+        }
+    }
 
     private record Fx(BlockPos pos, BlockState state, long start, boolean in) {
         int duration() {
@@ -45,6 +59,11 @@ public final class BlockFx {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;
         long now = mc.level.getGameTime();
+        if (pop.in() && !pop.pos().isEmpty()) {
+            Held h = new Held(pop.pos().get(0), now + Net.GROW_TICKS);
+            for (int i = 0; i < pop.pos().size(); i++) h.blocks.put(pop.pos().get(i).subtract(h.origin), Block.stateById(pop.states().get(i)));
+            HELD.add(h);
+        }
         for (int i = 0; i < pop.pos().size(); i++)
             ACTIVE.add(new Fx(pop.pos().get(i), Block.stateById(pop.states().get(i)), now, pop.in()));
     }
@@ -58,10 +77,12 @@ public final class BlockFx {
 
     @SubscribeEvent
     public static void onRender(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS || ACTIVE.isEmpty()) return;
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS || ACTIVE.isEmpty() && HELD.isEmpty()) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) {
             ACTIVE.clear();
+            HELD.forEach(h -> { if (h.mesh != null) h.mesh.close(); });
+            HELD.clear();
             return;
         }
         float now = mc.level.getGameTime() + event.getPartialTick();
@@ -69,7 +90,20 @@ public final class BlockFx {
         PoseStack ps = event.getPoseStack();
         var buffers = mc.renderBuffers().bufferSource();
         // a growing block stays drawn until the real one has arrived and been meshed, or it would flash for a frame or two
-        ACTIVE.removeIf(f -> now - f.start() >= f.duration() + (f.in() && mc.level.getBlockState(f.pos()).isAir() ? 6 : 0));
+        ACTIVE.removeIf(f -> now - f.start() >= f.duration());
+        HELD.removeIf(h -> {
+            boolean landed = !mc.level.getBlockState(h.origin).isAir() && now - h.shownAt > 6 || now - h.shownAt > 1200;
+            if (landed && h.mesh != null) h.mesh.close();
+            return landed;
+        });
+        for (Held h : HELD) {
+            if (now < h.shownAt) continue;
+            if (h.mesh == null) h.mesh = new StructureMesh(h.blocks);
+            ps.pushPose();
+            ps.translate(h.origin.getX() - cam.x, h.origin.getY() - cam.y, h.origin.getZ() - cam.z);
+            h.mesh.draw(ps.last().pose(), event.getProjectionMatrix());
+            ps.popPose();
+        }
         for (Fx f : ACTIVE) {
             float s = Math.max(0, scale(f.in(), (now - f.start()) / f.duration()));
             ps.pushPose();

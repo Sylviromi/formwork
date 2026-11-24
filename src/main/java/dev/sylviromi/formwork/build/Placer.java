@@ -101,15 +101,17 @@ public final class Placer {
     /** Like put, but as a sweep over a few ticks. Stops if alive turns false (the placement was dismantled meanwhile). */
     public static void putAnimated(ServerLevel level, Map<BlockPos, Resolver.Placed> blocks, ServerPlayer player, BooleanSupplier alive) {
         UUID id = player.getUUID();
+        // the sweep is only drawn; every block lands together when it ends, so a multiblock sees the finished structure once
         Animator.run(new ArrayList<>(blocks.keySet()), true, Net.GROW_TICKS, pos -> {
-            if (level.getBlockState(pos).canBeReplaced()) putOne(level, pos, blocks.get(pos), level.getServer().getPlayerList().getPlayer(id));
         }, batch -> {
             var open = batch.stream().filter(pos -> level.getBlockState(pos).canBeReplaced()).toList();
             if (open.isEmpty()) return;
             var sound = blocks.get(open.get(0)).state().getSoundType().getPlaceSound();
             level.playSound(null, open.get(0), sound, SoundSource.BLOCKS, 0.6f, 1f);
             Net.pop(level, true, open, blocks.keySet(), pos -> blocks.get(pos).state());
-        }, alive, () -> {});
+        }, alive, () -> blocks.keySet().forEach(pos -> {
+            if (level.getBlockState(pos).canBeReplaced()) putOne(level, pos, blocks.get(pos), level.getServer().getPlayerList().getPlayer(id));
+        }));
     }
 
     private static void putOne(ServerLevel level, BlockPos pos, Resolver.Placed b, @Nullable ServerPlayer player) {

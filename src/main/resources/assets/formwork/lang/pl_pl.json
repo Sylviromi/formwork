@@ -67,7 +67,6 @@
   "formwork.gui.pick_default": "Blok z planu",
   "formwork.gui.pick_hint": "Kliknij blok w podglądzie, aby go zmienić",
   "formwork.gui.reset_variants": "Reset to original",
-  "formwork.gui.check_ok": "Uformuje się: liczba portów się zgadza",
   "formwork.gui.check_bad": "Nie uformuje się:",
   "formwork.gui.changed": "Zmieniono: %s / %s",
   "formwork.gui.all_like": "Wszystkie: %s",

@@ -544,14 +544,13 @@ public class EditorScreen extends Screen {
         g.drawString(font, count, vx + vw - INSET - font.width(count), textY(tb[4], CTRL), DIM, false);
 
         // MM-style families: whether the machine will form, always in sight
-        if (!checks.isEmpty()) {
-            String status = problems() == 0 ? Component.translatable("formwork.gui.check_ok").getString()
-                    : Component.translatable("formwork.gui.check_bad").getString();
+        if (problems() > 0) {
+            String status = Component.translatable("formwork.gui.check_bad").getString();
             status = font.plainSubstrByWidth(status, sliderX() - vx - 2 * INSET - 2 * PAD);
             int sw = font.width(status) + 2 * PAD, sy = footY() - GAP - CTRL;
-            g.fill(vx + INSET, sy, vx + INSET + sw, sy + CTRL, problems() == 0 ? 0xD0153A26 : 0xD04A1818);
-            g.renderOutline(vx + INSET, sy, sw, CTRL, problems() == 0 ? GREEN : RED);
-            g.drawString(font, status, vx + INSET + PAD, textY(sy, CTRL), problems() == 0 ? GREEN : RED, false);
+            g.fill(vx + INSET, sy, vx + INSET + sw, sy + CTRL, 0xD04A1818);
+            g.renderOutline(vx + INSET, sy, sw, CTRL, RED);
+            g.drawString(font, status, vx + INSET + PAD, textY(sy, CTRL), RED, false);
         }
         // layer slider: top = all layers
         int sx = sliderX(), st = sliderTop(), sb = sliderBottom(), layers = (int) bounds.dy();

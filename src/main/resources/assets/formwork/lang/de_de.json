@@ -67,7 +67,6 @@
   "formwork.gui.pick_default": "Der Block des Bauplans",
   "formwork.gui.pick_hint": "Klicke auf einen Block in der Ansicht, um ihn zu ändern",
   "formwork.gui.reset_variants": "Auf Original zurücksetzen",
-  "formwork.gui.check_ok": "Bildet sich: Anzahl der Anschlüsse stimmt",
   "formwork.gui.check_bad": "Bildet sich nicht:",
   "formwork.gui.changed": "%s / %s geändert",
   "formwork.gui.all_like": "Alle %s",

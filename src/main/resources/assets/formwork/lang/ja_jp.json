@@ -67,7 +67,6 @@
   "formwork.gui.pick_default": "設計図のブロック",
   "formwork.gui.pick_hint": "ビューのブロックをクリックして変更",
   "formwork.gui.reset_variants": "元に戻す",
-  "formwork.gui.check_ok": "形成されます: ポートの数が一致",
   "formwork.gui.check_bad": "形成されません:",
   "formwork.gui.changed": "%s / %s 変更",
   "formwork.gui.all_like": "すべて%s",
