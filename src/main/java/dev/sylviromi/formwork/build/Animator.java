@@ -41,12 +41,11 @@ public final class Animator {
             TreeMap<Integer, List<BlockPos>> layers = new TreeMap<>(bottomUp ? Comparator.<Integer>naturalOrder() : Comparator.<Integer>reverseOrder());
             for (BlockPos p : order) layers.computeIfAbsent(p.getY(), y -> new ArrayList<>()).add(p);
             double speed = dev.sylviromi.formwork.Config.ANIMATION_SPEED.get();
-            int ticks = Math.max(1, (int) Math.round(Math.max(MIN_TICKS, Math.min(MAX_TICKS, layers.size() * 2)) / speed));
+            int ticks = Math.max(1, (int) Math.round(Math.min(layers.size(), Math.max(MIN_TICKS, Math.min(MAX_TICKS, layers.size() * 2))) / speed));
             List<List<BlockPos>> out = new ArrayList<>();
             for (int i = 0; i < ticks; i++) out.add(new ArrayList<>());
             int rank = 0;
             for (List<BlockPos> layer : layers.values()) out.get(rank++ * ticks / layers.size()).addAll(layer);
-            out.removeIf(List::isEmpty);
             this.batches = out;
         }
 
@@ -56,7 +55,7 @@ public final class Animator {
             if (all) {
                 for (int i = Math.max(0, tick - lag); i < batches.size(); i++) batches.get(i).forEach(each);
             } else {
-                if (tick < batches.size()) effect.accept(batches.get(tick));
+                if (tick < batches.size() && !batches.get(tick).isEmpty()) effect.accept(batches.get(tick));
                 int due = tick - lag;
                 if (due >= 0 && due < batches.size()) batches.get(due).forEach(each);
             }
