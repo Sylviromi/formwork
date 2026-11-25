@@ -36,7 +36,6 @@ public final class BlockFx {
         final BlockPos origin;
         final java.util.Map<BlockPos, BlockState> blocks = new java.util.HashMap<>();
         final long shownAt;
-        StructureMesh mesh;
 
         Held(BlockPos origin, long shownAt) {
             this.origin = origin;
@@ -106,6 +105,24 @@ public final class BlockFx {
         return 1 - y * y * y;
     }
 
+    private static void drawBlock(Minecraft mc, PoseStack ps, net.minecraft.client.renderer.MultiBufferSource buffers, Vec3 cam, BlockPos pos, BlockState state, float s) {
+        int light = LevelRenderer.getLightColor(mc.level, pos);
+        ps.pushPose();
+        ps.translate(pos.getX() - cam.x + 0.5, pos.getY() - cam.y + 0.5, pos.getZ() - cam.z + 0.5);
+        ps.scale(s, s, s);
+        ps.translate(-0.5, -0.5, -0.5);
+        for (Baked b : baked(mc.getBlockRenderer(), state)) {
+            var vc = buffers.getBuffer(b.type());
+            for (BakedQuad q : b.quads()) {
+                float shade = q.isShade() ? SHADE[q.getDirection().ordinal()] : 1f;
+                int tint = q.isTinted() ? mc.getBlockColors().getColor(state, mc.level, pos, q.getTintIndex()) : -1;
+                float r = tint == -1 ? 1 : (tint >> 16 & 255) / 255f, g = tint == -1 ? 1 : (tint >> 8 & 255) / 255f, bl = tint == -1 ? 1 : (tint & 255) / 255f;
+                vc.putBulkData(ps.last(), q, r * shade, g * shade, bl * shade, light, OverlayTexture.NO_OVERLAY);
+            }
+        }
+        ps.popPose();
+    }
+
     @SubscribeEvent
     public static void onRender(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS || ACTIVE.isEmpty() && HELD.isEmpty()) return;
@@ -113,7 +130,6 @@ public final class BlockFx {
         if (mc.level == null) {
             ACTIVE.clear();
             BAKED.clear();
-            HELD.forEach(h -> { if (h.mesh != null) h.mesh.close(); });
             HELD.clear();
             return;
         }
@@ -124,37 +140,16 @@ public final class BlockFx {
         // a growing block stays drawn until the real one has arrived and been meshed, or it would flash for a frame or two
         ACTIVE.removeIf(f -> now - f.start() >= f.duration());
         HELD.removeIf(h -> {
-            boolean landed = !mc.level.getBlockState(h.origin).isAir() && now - h.shownAt > 6 || now - h.shownAt > 1200;
-            if (landed && h.mesh != null) h.mesh.close();
-            return landed;
+            return !mc.level.getBlockState(h.origin).isAir() && now - h.shownAt > 6 || now - h.shownAt > 1200;
         });
         for (Held h : HELD) {
             if (now < h.shownAt) continue;
-            if (h.mesh == null) h.mesh = new StructureMesh(h.blocks);
-            ps.pushPose();
-            ps.translate(h.origin.getX() - cam.x, h.origin.getY() - cam.y, h.origin.getZ() - cam.z);
-            h.mesh.draw(ps.last().pose(), event.getProjectionMatrix());
-            ps.popPose();
+            h.blocks.forEach((rel, state) -> drawBlock(mc, ps, buffers, cam, h.origin.offset(rel), state, 1));
         }
-        BlockRenderDispatcher dispatcher = mc.getBlockRenderer();
         for (Fx f : ACTIVE) {
             float s = Math.max(0, scale(f.in(), (now - f.start()) / f.duration()));
             if (s <= 0) continue;
-            int light = LevelRenderer.getLightColor(mc.level, f.pos());
-            ps.pushPose();
-            ps.translate(f.pos().getX() - cam.x + 0.5, f.pos().getY() - cam.y + 0.5, f.pos().getZ() - cam.z + 0.5);
-            ps.scale(s, s, s);
-            ps.translate(-0.5, -0.5, -0.5);
-            for (Baked b : baked(dispatcher, f.state())) {
-                var vc = buffers.getBuffer(b.type());
-                for (BakedQuad q : b.quads()) {
-                    float shade = q.isShade() ? SHADE[q.getDirection().ordinal()] : 1f;
-                    int tint = q.isTinted() ? mc.getBlockColors().getColor(f.state(), mc.level, f.pos(), q.getTintIndex()) : -1;
-                    float r = tint == -1 ? 1 : (tint >> 16 & 255) / 255f, g = tint == -1 ? 1 : (tint >> 8 & 255) / 255f, bl = tint == -1 ? 1 : (tint & 255) / 255f;
-                    vc.putBulkData(ps.last(), q, r * shade, g * shade, bl * shade, light, OverlayTexture.NO_OVERLAY);
-                }
-            }
-            ps.popPose();
+            drawBlock(mc, ps, buffers, cam, f.pos(), f.state(), s);
         }
         buffers.endBatch();
     }
