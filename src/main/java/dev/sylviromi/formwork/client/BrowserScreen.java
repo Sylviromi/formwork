@@ -230,7 +230,6 @@ public class BrowserScreen extends Screen {
                 int cx = gridX() + col * (cw + PAD), cy = top() + row * (CARD_H + PAD) - scroll;
                 if (in(mx, my, starX(cx, cw), cy + INSET + 2, STAR, STAR)) {
                     Memory.toggleFavourite(shown.get(i).entry().key());
-                    refilter();
                     return true;
                 }
                 minecraft.setScreen(new EditorScreen(shown.get(i).entry()));
