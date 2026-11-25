@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+
+### Fixed
+- The variants list could not be reached again after selecting a block to swap; there is now an "All sets" row to go back.
+
 ## 1.1.0
 
 ### Added
