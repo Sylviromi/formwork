@@ -129,6 +129,10 @@ public class EditorScreen extends Screen {
         slotMap.keySet().stream().findFirst().ifPresent(this::select);
     }
 
+    void devBack() {
+        deselect();
+    }
+
     void devTier(int i) {
         tier = i;
         overrides.clear();
@@ -583,6 +587,11 @@ public class EditorScreen extends Screen {
         lines = buildLines();
     }
 
+    private void deselect() {
+        selectedSlot = null;
+        lines = buildLines();
+    }
+
     private void choose(String block) {
         if (block.equals(base.get(selectedSlot).id())) overrides.remove(selectedSlot);
         else overrides.put(selectedSlot, block);
@@ -618,6 +627,7 @@ public class EditorScreen extends Screen {
     /** The selected block: its name and "all like this", then the choices; a choice applies at once. */
     private void selectedLines(List<Line> out) {
         BlockPos pos = selectedSlot;
+        out.add(actionLine(Component.translatable("formwork.gui.back_to_list"), this::deselect));
         String now = blockAt(pos), original = base.get(pos).id();
         List<BlockPos> same = slotsOf(slotMap.get(pos).id());
         Component all = Component.translatable("formwork.gui.all_like", same.size());
@@ -773,8 +783,10 @@ public class EditorScreen extends Screen {
         int x = sideX();
         for (TabCell c : tabCells())
             if (in(mx, my, c.x(), bodyTop() + INSET, c.w() - GAP, CTRL)) {
+                boolean again = c.tab() == Tab.VARIANTS && tab == Tab.VARIANTS;
                 tab = c.tab();
                 sideScroll = 0;
+                if (again) selectedSlot = null;
                 lines = buildLines();
                 return true;
             }
@@ -854,8 +866,7 @@ public class EditorScreen extends Screen {
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
         if (selectedSlot != null && key == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
-            selectedSlot = null;
-            lines = buildLines();
+            deselect();
             return true;
         }
         return super.keyPressed(key, scan, mods);

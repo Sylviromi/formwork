@@ -88,6 +88,14 @@ public final class DevHooks {
             step(t += 10, null, mc -> editor(mc, FISSION, "SETTINGS", e -> e.devLayer(3)));
             step(t += 50, "editor_layers", null);
         });
+        GROUPS.put("back", () -> {
+            step(t += 10, null, mc -> editor(mc, TURBINE, "VARIANTS", EditorScreen::devPickFirstSlot));
+            step(t += 50, "editor_selected", null);
+            step(t += 10, null, mc -> {
+                if (mc.screen instanceof EditorScreen e) e.devBack();
+            });
+            step(t += 30, "editor_back", null);
+        });
         GROUPS.put("mm", () -> {
             step(t += 10, null, mc -> editor(mc, MM, "VARIANTS", EditorScreen::devWrongPort));
             step(t += 50, "editor_mm_check", null);

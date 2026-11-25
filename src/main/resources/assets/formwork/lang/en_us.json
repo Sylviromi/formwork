@@ -73,6 +73,7 @@
   "formwork.gui.reset_variants": "Reset to original",
   "formwork.gui.check_bad": "Will not form",
   "formwork.gui.changed": "%s / %s changed",
+  "formwork.gui.back_to_list": "All sets",
   "formwork.gui.all_like": "All %s",
   "formwork.gui.all_like_tip": "Use this block for every block of this kind",
   "formwork.gui.other": "Other",
