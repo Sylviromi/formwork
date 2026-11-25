@@ -627,7 +627,19 @@ public class EditorScreen extends Screen {
     /** The selected block: its name and "all like this", then the choices; a choice applies at once. */
     private void selectedLines(List<Line> out) {
         BlockPos pos = selectedSlot;
-        out.add(actionLine(Component.translatable("formwork.gui.back_to_list"), this::deselect));
+        out.add(new Line() {
+            @Override public int height() { return ROW + GAP; }
+
+            @Override public void render(GuiGraphics g, int x, int y, int w, int mx, int my) {
+                g.fill(x - BLEED, y, x + w + BLEED, y + ROW, in(mx, my, x - BLEED, y, w + 2 * BLEED, ROW) ? BTN_HOVER : CELL);
+                g.drawString(font, "\u2039 " + Component.translatable("formwork.gui.back_to_list").getString(), x + INSET, textY(y, ROW), TEXT, false);
+            }
+
+            @Override public boolean click(int x, int y, int w, double mx, double my, int button) {
+                deselect();
+                return true;
+            }
+        });
         String now = blockAt(pos), original = base.get(pos).id();
         List<BlockPos> same = slotsOf(slotMap.get(pos).id());
         Component all = Component.translatable("formwork.gui.all_like", same.size());
