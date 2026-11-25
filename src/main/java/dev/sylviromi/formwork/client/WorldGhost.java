@@ -57,6 +57,7 @@ public final class WorldGhost {
         Placements.Rec hovered = PlacerItem.placementLookedAt(mc.player);
         // pointing at a placed multiblock: show it instead of a new ghost
         if (hovered != null) {
+            if (Hud.progress(mc, hovered) >= 1) return;
             renderPlaced(event, mc, hovered);
             return;
         }

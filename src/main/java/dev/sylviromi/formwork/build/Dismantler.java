@@ -38,6 +38,8 @@ public final class Dismantler {
         return out;
     }
 
+    private static final java.util.Set<UUID> BUSY = new java.util.HashSet<>();
+
     public static void dismantle(ServerPlayer player, ItemStack tool, Placements.Rec rec) {
         ServerLevel level = player.serverLevel();
         Placements placements = Placements.of(level);
@@ -51,17 +53,17 @@ public final class Dismantler {
         order.sort(Comparator.comparingInt((Map.Entry<BlockPos, Resolver.Placed> e) -> e.getKey().getY()).reversed());
         List<BlockPos> take = new ArrayList<>();
         int kept = 0;
+        if (!BUSY.add(rec.id())) return;
         for (var e : order) {
             BlockState state = level.getBlockState(e.getKey());
             if (state.getBlock() != e.getValue().state().getBlock()) continue; // replaced or removed by hand: not ours any more
             if (canTake(player, level, e.getKey(), state)) take.add(e.getKey());
             else kept++;
         }
-        // keep the record while protected blocks remain, so the player can come back
-        if (kept == 0) placements.remove(level, rec.id());
         List<ItemStack> drops = new ArrayList<>();
         int[] removed = new int[1];
         UUID id = player.getUUID();
+        int finalKept = kept;
         Animator.run(take, false, 0, pos -> {
             BlockState state = level.getBlockState(pos);
             if (state.getBlock() != placed.get(pos).state().getBlock()) return;
@@ -72,6 +74,9 @@ public final class Dismantler {
         }, batch -> {
             Net.pop(level, false, batch, level::getBlockState);
         }, () -> true, () -> {
+            BUSY.remove(rec.id());
+            // keep the record while protected blocks remain, so the player can come back; it goes only after the sweep so no ghost shows meanwhile
+            if (finalKept == 0) placements.remove(level, rec.id());
             ServerPlayer who = level.getServer().getPlayerList().getPlayer(id);
             if (who == null) {
                 drops.forEach(d -> Block.popResource(level, take.get(take.size() - 1), d)); // left the game meanwhile
